@@ -480,3 +480,47 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+##
+## eShop — local / generated files (do not commit)
+##
+
+# Local secrets and machine overrides (keep shared appsettings.json)
+**/appsettings.*.local.json
+**/secrets.json
+**/Secrets.json
+*.pfx
+*.p12
+.env.*
+!.env.example
+
+# Spec Kit per-checkout pointer (also listed in .specify/.gitignore)
+.specify/feature.json
+.specify/extensions/*/local-config.yml
+.specify/integrations/packages/
+.specify/integrations/packages.json
+
+# Cursor session junk (keep .cursor/rules and .cursor/skills)
+.cursor/*.log
+.cursor/plans/
+.cursor/projects/
+.cursor/debug.log
+
+# Test output and coverage (beyond [Tt]est[Rr]esult*/)
+TestResults/
+[Tt]est[Rr]esults/
+coverage/
+**/TestResults/
+*.received.*
+*.trx
+
+# Local Grafana / Podman data
+deploy/observability/data/
+deploy/observability/volumes/
+
+# Rider / Visual Studio extras
+*.sln.DotSettings.user
+_ReSharper.Caches/
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/shelf/

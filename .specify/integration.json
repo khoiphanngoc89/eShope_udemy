@@ -1,0 +1,24 @@
+{
+  "version": "1.2.3",
+  "integration_state_schema": 1,
+  "installed_integrations": [
+    "generic",
+    "cursor-agent"
+  ],
+  "integration_settings": {
+    "generic": {
+      "script": "sh",
+      "raw_options": "--commands-dir specify/commands",
+      "parsed_options": {
+        "commands_dir": "specify/commands"
+      },
+      "invoke_separator": "."
+    },
+    "cursor-agent": {
+      "script": "sh",
+      "invoke_separator": "-"
+    }
+  },
+  "integration": "cursor-agent",
+  "default_integration": "cursor-agent"
+}

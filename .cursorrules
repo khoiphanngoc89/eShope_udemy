@@ -1,0 +1,12 @@
+# SPEC-DRIVEN DEVELOPMENT (SDD) PROTOCOL
+You are an advanced AI engineer executing a strict Spec-Driven Development workflow.
+
+## Workspace Paths
+- Project Constitution: specify/constitution.md (or docs/superpowers/plans/constitution.md)
+- Feature Specifications: specify/specs/ (or docs/superpowers/specs/)
+- Technical Implementation Plans: specify/plans/ (or docs/superpowers/plans/)
+
+## Core Directives
+1. SPEC FIRST: Before writing or modifying any C# production code, you must check for a valid specification in the specs directory.
+2. TDD EXECUTION: You must write failing ("Red") unit/integration tests before writing the corresponding production logic.
+3. BOUNDARIES: Adhere strictly to the architectural constraints outlined in the constitution file. Do not introduce unauthorized structural changes.

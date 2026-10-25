@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eshop.local/schemas/serilog-logging-configuration.json",
+  "title": "Per-service Serilog section",
+  "description": "Subset of Serilog.Settings.Configuration used by BuildBlock.Logging. Lives in each service appsettings file under the Serilog key.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "Using": {
+      "type": "array",
+      "items": { "type": "string" },
+      "examples": [
+        ["Serilog.Sinks.Console", "Serilog.Sinks.OpenTelemetry", "Serilog.Enrichers.Environment"]
+      ]
+    },
+    "MinimumLevel": {
+      "oneOf": [
+        { "type": "string", "enum": ["Verbose", "Debug", "Information", "Warning", "Error", "Fatal"] },
+        {
+          "type": "object",
+          "properties": {
+            "Default": {
+              "type": "string",
+              "enum": ["Verbose", "Debug", "Information", "Warning", "Error", "Fatal"]
+            },
+            "Override": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "enum": ["Verbose", "Debug", "Information", "Warning", "Error", "Fatal"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Enrich": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "Properties": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "WriteTo": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["Name"],
+        "properties": {
+          "Name": { "type": "string" },
+          "Args": { "type": "object" }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "Using": ["Serilog.Sinks.Console", "Serilog.Enrichers.Environment"],
+      "MinimumLevel": {
+        "Default": "Information",
+        "Override": { "Microsoft.AspNetCore": "Warning" }
+      },
+      "Enrich": ["FromLogContext", "WithEnvironmentName"],
+      "WriteTo": [{ "Name": "Console" }],
+      "Properties": { "Application": "eShop.Catalog.Api" }
+    },
+    {
+      "Using": ["Serilog.Sinks.Console", "Serilog.Sinks.OpenTelemetry"],
+      "MinimumLevel": { "Default": "Information" },
+      "WriteTo": [
+        { "Name": "Console" },
+        {
+          "Name": "OpenTelemetry",
+          "Args": {
+            "endpoint": "http://localhost:4317",
+            "protocol": "Grpc"
+          }
+        }
+      ]
+    }
+  ]
+}

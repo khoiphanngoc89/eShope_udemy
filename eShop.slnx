@@ -1,2 +1,14 @@
 <Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/BuildingBlock/BuildingBlock.csproj" />
+    <Project Path="src/BuildingBlocks/BuildBlock.Logging/BuildBlock.Logging.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/">
+    <Project Path="src/Services/eShop.Catalog.Api/eShop.Catalog.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/BuildingBlocks/">
+    <Project Path="tests/BuildingBlocks/BuildBlock.Logging.Tests/BuildBlock.Logging.Tests.csproj" />
+  </Folder>
 </Solution>
+

@@ -1,0 +1,18 @@
+# Local Grafana LGTM stack for eShop logs (Podman or Docker).
+# Default OTLP HTTP endpoint matches Catalog appsettings: http://localhost:4318
+#
+#   podman compose -f deploy/observability/compose.yaml up -d
+#   # or: docker compose -f deploy/observability/compose.yaml up -d
+#
+# Grafana UI: http://localhost:3000  (admin / admin)
+# OTLP HTTP:  http://localhost:4318
+# OTLP gRPC:  http://localhost:4317
+services:
+  lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: eshop-grafana-lgtm
+    ports:
+      - "3000:3000"
+      - "4317:4317"
+      - "4318:4318"
+    restart: unless-stopped

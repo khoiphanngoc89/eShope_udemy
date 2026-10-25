@@ -1,0 +1,21 @@
+---
+description: "Workflow rules combining Spec Kit (Planning), Superpowers (TDD Implementation), and Ponytail (Lean/YAGNI Execution)"
+globs:
+  - "*"
+alwaysApply: true
+---
+# Triple Engine Protocol: Spec Kit + Superpowers + Ponytail (TDD Enforced)
+
+## System Allocations
+- **Spec Kit (Architect):** Controls the structural feature specs (`docs/superpowers/specs/`) and designs the test checklist blueprint.
+- **Superpowers (Builder):** Automatically executes the TDD development loop.
+- **Ponytail (Lazy Senior Dev Bias):** Directs the aesthetic of the code generation. Prioritizes the absolute minimum footprint required to turn a test green.
+
+## Enforced TDD & Minimalism Rules
+1. **Red Phase (Tests First):** Superpowers must *only* write the unit or integration tests inside the test suite first. Production code must remain unimplemented (`throw new NotImplementedException()`). 
+2. **Green Phase (Ponytail Decision Ladder):** Before Superpowers writes any production C# logic to pass the tests, it must execute the **Ponytail protocol**:
+   - *Rung 1:* Can we reuse existing codebase helpers or methods?
+   - *Rung 2:* Can we solve this with native standard libraries (e.g., standard system library types)?
+   - *Rung 3:* Can we solve this with a single liner or the absolute absolute minimum lines of code?
+3. **Abstraction Ban:** Never create new architectural layers, interfaces, wrappers, or custom validation engines unless explicitly defined in the Spec Kit blueprint file. Deletion beats addition.
+4. **Safety Net:** Never cut required input validation, security rules, data protection, or user request parameters to save lines.
