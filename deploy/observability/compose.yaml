@@ -1,18 +1,32 @@
 # Local Grafana LGTM stack for eShop logs (Podman or Docker).
 # Default OTLP HTTP endpoint matches Catalog appsettings: http://localhost:4318
 #
-#   podman compose -f deploy/observability/compose.yaml up -d
-#   # or: docker compose -f deploy/observability/compose.yaml up -d
+#   podman compose -f deploy/observability/compose.yaml up -d --wait
+#   # or: docker compose -f deploy/observability/compose.yaml up -d --wait
 #
 # Grafana UI: http://localhost:3000  (admin / admin)
 # OTLP HTTP:  http://localhost:4318
 # OTLP gRPC:  http://localhost:4317
+#
+# Explore → select Loki (name Loki, type loki, uid loki). Do not add a data source.
+# /tmp/ready exists only after Grafana and Loki are both healthy (Starting → Ready).
+# LogQL (last 15 minutes): {service_name=~".*eShop.Catalog.Api.*"}
+# (Pinned image stores OTLP service_name as unknown_service:eShop.Catalog.Api.exe.)
+# Severity: detected_level (info|warn|debug|error). Request rows include trace_id.
+# Starting: Grafana may answer before /tmp/ready. Ready: --wait finished, Loki health OK.
+# Unavailable: Grafana up but GET /api/datasources/uid/loki/health is ERROR. Empty search is not an error.
 services:
   lgtm:
-    image: grafana/otel-lgtm:latest
+    image: grafana/otel-lgtm:0.38.0
     container_name: eshop-grafana-lgtm
     ports:
       - "3000:3000"
       - "4317:4317"
       - "4318:4318"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
