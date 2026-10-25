@@ -8,9 +8,9 @@ public sealed class CreateProductEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/products", async (CreateProductCommand command, ICommandHandler<CreateProductCommand, CreateProductResult> handler) =>
+        app.MapPost("/products", async (CreateProductCommand command, ISender sender, CancellationToken cancellationToken) =>
         {
-            var result = await handler.Handle(command, CancellationToken.None);
+            var result = await sender.Send(command, cancellationToken);
             return Results.Created($"/products/{result.Id}", result);
         })
         .WithName("CreateProduct")

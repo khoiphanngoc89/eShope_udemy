@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reflection;
 using Carter;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,8 +12,13 @@ public static class CarterExtensions
         var entryAssembly = Assembly.GetEntryAssembly()
             ?? throw new InvalidOperationException("The entry assembly could not be determined.");
 
-        services.AddCarter(
-            assemblyCatalog: new DependencyContextAssemblyCatalog(entryAssembly));
+        var assemblies = new DependencyContextAssemblyCatalog(entryAssembly)
+            .GetAssemblies()
+            .Append(entryAssembly)
+            .Distinct()
+            .ToArray();
+
+        services.AddCarter(assemblyCatalog: new DependencyContextAssemblyCatalog(assemblies));
 
         return services;
     }
