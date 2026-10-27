@@ -524,3 +524,4 @@ _ReSharper.Caches/
 .idea/**/workspace.xml
 .idea/**/tasks.xml
 .idea/**/shelf/
+scripts/secrets/**

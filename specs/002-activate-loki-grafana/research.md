@@ -67,9 +67,9 @@ If the pinned image uses `level` instead of `detected_level`, the contract recor
 
 ## 6. Image tag
 
-**Decision**: Pin `grafana/otel-lgtm` to a published version tag chosen at implement time. Stop using `:latest`.
+**Decision**: Pin `grafana/otel-lgtm` to published tag `0.38.0`. Stop using `:latest`.
 
-**Rationale**: `:latest` can drop or rename the Loki datasource and break the contract. A pin keeps FR-001/FR-010 stable.
+**Rationale**: `:latest` can drop or rename the Loki datasource and break the contract. A pin keeps FR-001/FR-010 stable. `0.38.0` is the tag already running in `deploy/observability/compose.yaml`.
 
 **Alternatives considered**:
 - Keep `:latest` — rejected; activation must survive a pull.
@@ -82,14 +82,15 @@ If the pinned image uses `level` instead of `detected_level`, the contract recor
 1. After `--wait`, Loki appears in `GET /api/datasources` as type `loki`, uid `loki`.
 2. `GET /api/datasources/uid/loki/health` is OK.
 3. A Loki range query for a window with no Catalog traffic returns success with empty results (not a connection error).
-4. After Catalog is exporting, `{service_name="eShop.Catalog.Api"}` returns rows within 2 minutes.
+4. After Catalog is exporting, `{service_name=~".*eShop.Catalog.Api.*"}` returns rows within 2 minutes (pinned image stores `unknown_service:eShop.Catalog.Api.exe`).
 
 TDD for this feature: write/run those HTTP checks first (they fail if compose has no health wait / Loki is missing). Then change compose. Production C# stays untouched.
 
-**Rationale**: The workspace TDD rule applies to C# production logic. This feature is deploy config. A second test host would be a new layer with nothing to unit-test.
+**Rationale**: The workspace TDD rule applies to C# production logic. This feature is deploy config. A second test host would be a new layer with nothing to unit-test. Session 2026-10-27 / FR-011: Catalog.Api and BuildingBlocks unit/integration test suites are a separate feature and MUST NOT be added here.
 
 **Alternatives considered**:
 - xUnit tests that skip when Grafana is down — extra project, weak signal in CI without the stack.
+- Add `eShop.Catalog.Api` / BuildingBlocks test projects in this feature — rejected by FR-011; those suites need their own specification.
 - Only a prose README — not testable enough for FR-001.
 
 ## 8. Auth and scope leftovers

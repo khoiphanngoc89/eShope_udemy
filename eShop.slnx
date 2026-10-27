@@ -9,6 +9,11 @@
   </Folder>
   <Folder Name="/tests/BuildingBlocks/">
     <Project Path="tests/BuildingBlocks/BuildBlock.Logging.Tests/BuildBlock.Logging.Tests.csproj" />
+    <Project Path="tests/BuildingBlocks/BuildingBlock.Tests/BuildingBlock.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Services/">
+    <Project Path="tests/Services/eShop.Catalog.Api.Tests/eShop.Catalog.Api.Tests.csproj" />
   </Folder>
 </Solution>
+
 

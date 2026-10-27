@@ -2,6 +2,8 @@
 
 This feature does not persist application entities in the repo. The model is the Grafana/Loki runtime shape operators query.
 
+Catalog product entities (for example Create Product) and BuildingBlocks types are out of this model. They belong to a separate test-suite specification (FR-011).
+
 ## Loki Datasource
 
 The pre-activated log source Grafana must present after a healthy stack start (FR-001, FR-010).

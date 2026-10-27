@@ -109,3 +109,4 @@ Same query as §4 after Catalog has been running with its existing OTLP export (
 - Grafana Cloud tokens
 - Alerting / dashboard APIs
 - Changing Catalog `Serilog` settings
+- New unit or integration test projects for `eShop.Catalog.Api` or BuildingBlocks (FR-011)

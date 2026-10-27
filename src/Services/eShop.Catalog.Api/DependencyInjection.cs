@@ -1,6 +1,7 @@
 using BuildBlock.Logging.Extensions;
 using BuildingBlock.Extensions;
-using Carter;
+using Microsoft.Extensions.Options;
+using eShop.Catalog.Api.Options;
 
 namespace eShop.Catalog.Api;
 
@@ -13,6 +14,18 @@ public static class DependencyInjection
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
         builder.Services.AddAppCarter();
+        builder.Services.AddOptions<DatabaseOptions>()
+            .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.CatalogDb),
+                $"{DatabaseOptions.SectionName}:CatalogDb must be configured.")
+            .ValidateOnStart();
+        builder.Services.AddMarten(serviceProvider =>
+        {
+            var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+            var options = new StoreOptions();
+            options.Connection(databaseOptions.CatalogDb);
+            return options;
+        }).UseLightweightSessions();
         builder.Services.AddMediatR(configuration =>
             configuration.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
         return builder.Build();

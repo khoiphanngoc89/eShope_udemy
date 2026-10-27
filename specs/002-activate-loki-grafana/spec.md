@@ -8,6 +8,12 @@
 
 **Input**: User description: "I want to active the Loki in grafana"
 
+## Clarifications
+
+### Session 2026-10-27
+
+- Q: Should this specification require automated unit and integration tests for Catalog and other projects that currently have no test suite, or should it stay limited to proving Loki is ready in Grafana? → A: Keep this spec Loki-only. Treat missing Catalog/BuildingBlock tests as a separate feature that needs its own specification before those tests are written.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Open Grafana and query logs through Loki immediately (Priority: P1)
@@ -84,6 +90,7 @@ An operator opens Grafana while Loki is still starting, has been stopped, or has
 - **FR-008**: Activating Loki MUST NOT require operators to change how services write or export diagnostic records.
 - **FR-009**: Activating Loki MUST NOT replace or disable Grafana itself; Grafana remains the place operators open to search logs.
 - **FR-010**: A first-time start of the local observability stack MUST leave Loki activated for the next Grafana session without repeating setup.
+- **FR-011**: Completing this feature MUST be judged by the operator independent tests in the user stories (Loki listed, searchable, empty and unavailable states). It MUST NOT require a new automated test suite for Catalog product behavior or for other services that currently lack one.
 
 ### Key Entities
 
@@ -114,5 +121,6 @@ An operator opens Grafana while Loki is still starting, has been stopped, or has
 - Default local Grafana sign-in already documented for the stack (administrator account on the local UI) is reused. This feature does not add a new identity provider.
 - Local retention follows the stack’s default short-lived developer retention. Long-term compliance retention is out of scope.
 - Catalog is the first producing service used to prove records appear in Loki. Later services that use the same export path appear the same way.
+- Automated unit and integration tests for Catalog product behavior, and for other services or shared libraries that currently have no test suite (including BuildingBlock), are out of scope. They require a separate specification before those tests are written. This feature does not add or change those suites.
 - “Activate” means Loki is ready, enabled, and selectable in Grafana when the stack is up — not merely that a Loki process exists unused.
 - Metrics and traces may already be present in the same local stack; this feature does not require enabling or changing them.

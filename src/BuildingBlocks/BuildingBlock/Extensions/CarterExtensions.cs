@@ -11,10 +11,12 @@ public static class CarterExtensions
     {
         var entryAssembly = Assembly.GetEntryAssembly()
             ?? throw new InvalidOperationException("The entry assembly could not be determined.");
+        var callingAssembly = Assembly.GetCallingAssembly();
 
         var assemblies = new DependencyContextAssemblyCatalog(entryAssembly)
             .GetAssemblies()
             .Append(entryAssembly)
+            .Append(callingAssembly)
             .Distinct()
             .ToArray();
 

@@ -1,5 +1,3 @@
-using Carter;
-
 namespace eShop.Catalog.Api.Products.CreateProduct;
 
 public sealed record CreateProductRequest(string Name, decimal Price, string Description, string ImageFile, List<string> Categories) : ICommand<CreateProductResult>;

@@ -84,3 +84,4 @@ Restart with `up -d --wait`. The same Loki uid works again with no manual setup.
 - Grafana Cloud, a second Loki, or a new collector
 - Dashboards and alert rules
 - Publishing Loki `:3100` on the host
+- Adding unit or integration test projects for `eShop.Catalog.Api` or BuildingBlocks (FR-011). Those suites need a separate specification and are not a completion gate here.
