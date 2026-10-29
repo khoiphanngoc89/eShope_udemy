@@ -41,7 +41,7 @@ Catalog's base settings export every eligible record to `http://localhost:4318` 
 Start Grafana (default ports) from the repo root:
 
 ```bash
-podman compose -f deploy/observability/compose.yaml up -d
+podman compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait lgtm
 ```
 
 Grafana UI: `http://localhost:3000` (admin / admin). Then run Catalog and open Explore → Loki (or the LGTM logs view) to see `eShop.Catalog.Api` records.

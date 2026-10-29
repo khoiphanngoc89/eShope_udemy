@@ -514,9 +514,10 @@ coverage/
 *.received.*
 *.trx
 
-# Local Grafana / Podman data
-deploy/observability/data/
-deploy/observability/volumes/
+# Local Grafana / Podman data and Catalog Postgres bind-mounts
+# (named volume catalog-pgdata is the default)
+deploy/data/
+deploy/volumes/
 
 # Rider / Visual Studio extras
 *.sln.DotSettings.user

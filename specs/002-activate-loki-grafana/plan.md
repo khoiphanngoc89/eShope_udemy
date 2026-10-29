@@ -69,11 +69,12 @@ specs/002-activate-loki-grafana/
 ### Source Code (repository root)
 
 ```text
-deploy/observability/
-└── compose.yaml          # pin image; healthcheck waits for /tmp/ready; operator comments for Explore → Loki
+deploy/
+├── compose.yaml            # lgtm image (shared pair with catalogdb)
+└── compose.override.yaml   # lgtm ports, healthcheck (/tmp/ready), restart
 ```
 
-**Structure Decision**: Change only the existing observability compose file. Do not add `deploy/observability/grafana/`, a verify script, or any `src/` / `tests/` project. Catalog and `BuildBlock.Logging` are producers from `001-serilog-otel-logging` and stay out of this diff. `eShop.Catalog.Api` and BuildingBlocks unit/integration test suites are out of this feature (FR-011); specify them separately.
+**Structure Decision**: `lgtm` lives in the single Tedu overlay pair under `deploy/`. Do not add `deploy/observability/grafana/`, a verify script, or any `src/` / `tests/` project. Catalog and `BuildBlock.Logging` are producers from `001-serilog-otel-logging` and stay out of this feature’s Loki contract. `eShop.Catalog.Api` and BuildingBlocks unit/integration test suites are out of this feature (FR-011); specify them separately.
 
 ## Complexity Tracking
 

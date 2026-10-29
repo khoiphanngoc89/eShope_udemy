@@ -5,7 +5,7 @@ Validation guide for `002-activate-loki-grafana`. Implementation steps belong in
 ## Prerequisites
 
 - Podman or Docker with Compose
-- Repo file: [deploy/observability/compose.yaml](../../deploy/observability/compose.yaml)
+- Repo files: [deploy/compose.yaml](../../deploy/compose.yaml) and [deploy/compose.override.yaml](../../deploy/compose.override.yaml) (service `lgtm`)
 - Spec and contracts:
   - [spec.md](./spec.md)
   - [contracts/grafana-loki-api.md](./contracts/grafana-loki-api.md)
@@ -17,8 +17,8 @@ Validation guide for `002-activate-loki-grafana`. Implementation steps belong in
 From the repo root:
 
 ```bash
-podman compose -f deploy/observability/compose.yaml up -d --wait
-# or: docker compose -f deploy/observability/compose.yaml up -d --wait
+podman compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait lgtm
+# or: docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait lgtm
 ```
 
 Expected: the command returns only after the LGTM service is healthy (`/tmp/ready` present). Grafana UI: `http://localhost:3000` (admin / admin).

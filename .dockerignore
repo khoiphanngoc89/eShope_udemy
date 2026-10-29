@@ -17,8 +17,8 @@ specs
 **/.env.*
 **/appsettings.*.local.json
 **/secrets.json
-deploy/observability/data
-deploy/observability/volumes
+deploy/data
+deploy/volumes
 node_modules
 *.md
 *.http

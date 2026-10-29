@@ -12,7 +12,7 @@ Validation guide for `003-catalog-buildingblocks-tests`. Implementation steps be
 - Contracts:
   - [contracts/create-product-api.md](./contracts/create-product-api.md)
   - [contracts/buildingblock-api.md](./contracts/buildingblock-api.md)
-- Grafana/Loki **must not** be required. Leave `deploy/observability` stopped.
+- Grafana/Loki **must not** be required. Leave compose service `lgtm` stopped.
 
 ## Isolated checks (under 2 minutes)
 

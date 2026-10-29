@@ -1,0 +1,55 @@
+version: '3.9'
+
+# Local eShop stack (Podman or Docker). One compose file + one override.
+# From repo root:
+#   podman compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogdb
+#   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogdb
+# Catalog store only (Grafana and Catalog.Api not required):
+#   podman compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogdb
+#   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogdb
+# Catalog.Api (starts catalogdb if needed; Grafana not required):
+#   podman compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogapi
+#   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogapi
+# Grafana LGTM only:
+#   ... up -d --wait lgtm
+# Catalog local URL: http://localhost:5000 (HTTP only)
+#
+# Two views of the same store (local-development defaults, not production secrets):
+#   Published host: Host=localhost;Port=5432;Database=catalog;Username=catalog;Password=catalog
+#   In-stack:       Host=catalogdb;Port=5432;Database=catalog;Username=catalog;Password=catalog
+#
+# Grafana UI: http://localhost:3000  (admin / admin)
+# OTLP HTTP:  http://localhost:4318
+# OTLP gRPC:  http://localhost:4317
+#
+# Explore → select Loki (name Loki, type loki, uid loki). Do not add a data source.
+# LogQL (last 15 minutes): {service_name=~".*eShop.Catalog.Api.*"}
+# Severity: detected_level (info|warn|debug|error). Request rows include trace_id.
+#
+# Store states: Stopped (pg_isready fails) → Starting (container up, healthcheck not yet succeeding) → Ready (--wait catalogdb returned).
+# Catalog states: Starting (waits for store Ready) → Ready (--wait catalogapi returned). Catalog MUST NOT appear available until the store is Ready.
+# Ordinary stop: compose stop or down without -v. down -v deletes catalog-pgdata and is not the daily stop.
+# First start: empty catalog database is valid. Credentials are local-development defaults only.
+
+services:
+  #database section
+  catalogdb:
+    image: postgres:16.15
+
+  #catalog section
+  catalogapi:
+    image: eshop-catalog-api:local
+
+  #observability section
+  lgtm:
+    image: grafana/otel-lgtm:0.38.0
+
+#network section
+networks:
+  default:
+    name: eshop
+
+#volumes section
+volumes:
+  catalog-pgdata:
+    name: catalog-pgdata

@@ -2,7 +2,7 @@
 
 ## 1. Keep the existing LGTM container vs split Loki out
 
-**Decision**: Keep the single `grafana/otel-lgtm` service in `deploy/observability/compose.yaml`. Do not add a separate Loki, Grafana, Alloy, or collector service.
+**Decision**: Keep the single `grafana/otel-lgtm` service (`lgtm`) in the project compose pair `deploy/compose.yaml` + `deploy/compose.override.yaml`. Do not add a separate Loki, Grafana, Alloy, or collector service.
 
 **Rationale**: The logging feature already chose this image as the local stack. It already runs Loki, Grafana, and an OpenTelemetry collector that writes OTLP logs into Loki. Splitting the stack would change how operators start Grafana and would risk breaking Catalog’s existing `http://localhost:4318` export (FR-008, FR-009).
 
@@ -69,7 +69,7 @@ If the pinned image uses `level` instead of `detected_level`, the contract recor
 
 **Decision**: Pin `grafana/otel-lgtm` to published tag `0.38.0`. Stop using `:latest`.
 
-**Rationale**: `:latest` can drop or rename the Loki datasource and break the contract. A pin keeps FR-001/FR-010 stable. `0.38.0` is the tag already running in `deploy/observability/compose.yaml`.
+**Rationale**: `:latest` can drop or rename the Loki datasource and break the contract. A pin keeps FR-001/FR-010 stable. `0.38.0` is the tag already running for service `lgtm`.
 
 **Alternatives considered**:
 - Keep `:latest` — rejected; activation must survive a pull.

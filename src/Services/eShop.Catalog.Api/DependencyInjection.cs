@@ -2,6 +2,7 @@ using BuildBlock.Logging.Extensions;
 using BuildingBlock.Extensions;
 using Microsoft.Extensions.Options;
 using eShop.Catalog.Api.Options;
+using JasperFx;
 
 namespace eShop.Catalog.Api;
 
@@ -24,6 +25,7 @@ public static class DependencyInjection
             var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
             var options = new StoreOptions();
             options.Connection(databaseOptions.CatalogDb);
+            options.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
             return options;
         }).UseLightweightSessions();
         builder.Services.AddMediatR(configuration =>
