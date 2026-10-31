@@ -11,7 +11,7 @@ public class UpdateProductHandlerTests
     {
         var memory = new InMemoryDocumentSession();
         var id = Guid.NewGuid();
-        var createdAt = DateTime.UtcNow.AddHours(-1);
+        var createdAt = DateTimeOffset.UtcNow.AddHours(-1);
         memory.Store(new Product
         {
             Id = id,
@@ -36,6 +36,7 @@ public class UpdateProductHandlerTests
         Assert.Equal(id, stored.Id);
         Assert.Equal(createdAt, stored.CreatedAt);
         Assert.True(stored.LastModified > createdAt);
+        Assert.Equal(TimeSpan.Zero, stored.LastModified.Offset);
         Assert.Equal(command.Name, stored.Name);
         Assert.Equal(command.Price, stored.Price);
         Assert.Equal(command.Description, stored.Description);

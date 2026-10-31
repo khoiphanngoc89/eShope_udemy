@@ -21,7 +21,6 @@ public sealed class CreateProductHandler(ICatalogUnitOfWork unitOfWork) : IComma
 {
     public async Task<CreateProductResult> Handle(CreateProductCommand command, CancellationToken cancellationToken)
     {
-        var now = DateTime.UtcNow;
         var product = new Product
         {
             Id = Guid.NewGuid(),
@@ -30,8 +29,6 @@ public sealed class CreateProductHandler(ICatalogUnitOfWork unitOfWork) : IComma
             Description = command.Description,
             ImageFile = command.ImageFile,
             Categories = command.Categories,
-            CreatedAt = now,
-            LastModified = now,
             IsActive = true,
             IsDeleted = false
         };

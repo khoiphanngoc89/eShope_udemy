@@ -59,6 +59,7 @@ public class CreateProductHandlerTests
         Assert.NotNull(stored);
         Assert.NotEqual(Guid.Empty, stored.Id);
         Assert.NotEqual(default, stored.CreatedAt);
+        Assert.Equal(TimeSpan.Zero, stored.CreatedAt.Offset);
         Assert.Equal(stored.CreatedAt, stored.LastModified);
         Assert.False(stored.IsDeleted);
         Assert.True(stored.IsActive);

@@ -91,13 +91,13 @@
 
 ### Implementation for User Story 2
 
-- [x] T017 [P] [US2] Add `IAuditable` in `src/BuildingBlocks/BuildingBlock/Models/IAuditable.cs` with `CreatedAt` and `LastModified` date-time UTC required, `CreatedBy` and `LastModifiedBy` string or null (empty until Catalog has an authenticated caller)
+- [x] T017 [P] [US2] Add `IAuditable` in `src/BuildingBlocks/BuildingBlock/Models/IAuditable.cs` with `CreatedAt` and `LastModified` (`DateTimeOffset`, UTC) required, `CreatedBy` and `LastModifiedBy` string or null (empty until Catalog has an authenticated caller)
 - [x] T018 [P] [US2] Add `IDeletable` in `src/BuildingBlocks/BuildingBlock/Models/IDeletable.cs` with `IsDeleted` boolean required, default `false`
 - [x] T019 [P] [US2] Add `IActivable` in `src/BuildingBlocks/BuildingBlock/Models/IActivable.cs` with `IsActive` boolean required, default `true` (requested name `IActivable`)
 - [x] T020 [US2] Add abstract `BaseEntity` in `src/BuildingBlocks/BuildingBlock/Models/BaseEntity.cs` implementing `IAuditable`, `IDeletable`, `IActivable` with `Id` UUID required plus the trait fields and defaults from T017–T019 (FR-008)
 - [x] T021 [US2] Change `src/Services/eShop.Catalog.Api/Models/Product.cs` to inherit `BaseEntity` and remove the local `Id`; keep `Name`, `Price`, `Description`, `ImageFile`, `Categories` (FR-009)
-- [x] T022 [P] [US2] In `src/Services/eShop.Catalog.Api/Products/CreateProduct/CreateProductHandler.cs` set `CreatedAt = LastModified = DateTime.UtcNow`, `IsActive` default `true`, `IsDeleted` default `false`; do not change `POST /products` path or body (FR-010)
-- [x] T023 [P] [US2] In `src/Services/eShop.Catalog.Api/Products/UpdateProduct/UpdateProductHandler.cs` keep `Id` and `CreatedAt` unchanged and set `LastModified = DateTime.UtcNow`; do not change `PUT /products/{id}` path or body (FR-011)
+- [x] T022 [P] [US2] In `src/Services/eShop.Catalog.Api/Products/CreateProduct/CreateProductHandler.cs` set identity, `IsActive` default `true`, and `IsDeleted` default `false`; `GenericRepository.Create` sets `CreatedAt` and `LastModified` to one `DateTimeOffset.UtcNow` value; do not change `POST /products` path or body (FR-010)
+- [x] T023 [P] [US2] In `src/Services/eShop.Catalog.Api/Products/UpdateProduct/UpdateProductHandler.cs` keep `Id` and `CreatedAt` unchanged; `GenericRepository.Update` refreshes `LastModified`; do not change `PUT /products/{id}` path or body (FR-011)
 - [x] T024 [P] [US2] In `src/Services/eShop.Catalog.Api/Products/GetById/GetByIdHandler.cs` throw `ProductNotFoundException` when the product is null or `IsDeleted` is `true` (FR-007)
 - [x] T025 [US2] Add `.WithException()` on `GET /products/{id}` in `src/Services/eShop.Catalog.Api/Products/GetById/GetByIdEndpoint.cs` so missing/deleted returns `404` `{ message }` (contracts/get-product-by-id-api.md §2)
 - [x] T026 [US2] Update `src/Services/eShop.Catalog.Api/Products/GetProducts/GetProductsHandler.cs` to filter `IsDeleted = false`, include inactive not-deleted products, and order by `LastModified` descending then `Id` ascending (FR-005, FR-018)

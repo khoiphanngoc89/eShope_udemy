@@ -81,6 +81,35 @@ public class GenericRepositoryTests
         var stored = await memory.LoadAsync(product.Id);
         Assert.NotNull(stored);
         Assert.Equal(product.Name, stored.Name);
+        Assert.NotEqual(DateTimeOffset.MinValue, stored.CreatedAt);
+        Assert.Equal(stored.CreatedAt, stored.LastModified);
+        Assert.Equal(TimeSpan.Zero, stored.CreatedAt.Offset);
+    }
+
+    [Fact]
+    public async Task Update_ThenSaveChanges_PreservesCreationAuditAndRefreshesModificationTime()
+    {
+        var memory = new InMemoryDocumentSession();
+        var session = memory.CreateSession();
+        var repository = new GenericRepository<Product>(session);
+        var unitOfWork = new UnitOfWork(session);
+        var createdAt = DateTimeOffset.UtcNow.AddHours(-1);
+        var product = CreateProduct(Guid.NewGuid(), isDeleted: false, isActive: true);
+        product.CreatedAt = createdAt;
+        product.LastModified = createdAt;
+        product.CreatedBy = "creator";
+        memory.Store(product);
+
+        product.Name = "Updated";
+        repository.Update(product);
+        await unitOfWork.SaveChangesAsync();
+
+        var stored = await memory.LoadAsync(product.Id);
+        Assert.NotNull(stored);
+        Assert.Equal(createdAt, stored.CreatedAt);
+        Assert.Equal("creator", stored.CreatedBy);
+        Assert.True(stored.LastModified > createdAt);
+        Assert.Equal(TimeSpan.Zero, stored.LastModified.Offset);
     }
 
     [Fact]
@@ -99,6 +128,7 @@ public class GenericRepositoryTests
         var stored = await memory.LoadAsync(product.Id);
         Assert.NotNull(stored);
         Assert.True(stored.IsDeleted);
+        Assert.NotEqual(DateTimeOffset.MinValue, stored.LastModified);
         Assert.Null(await repository.GetByIdAsync(product.Id, CancellationToken.None));
     }
 

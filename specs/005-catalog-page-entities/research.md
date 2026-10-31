@@ -18,16 +18,16 @@
 | Trait | Fields | Defaults |
 |-------|--------|----------|
 | Identity on `BaseEntity` | `Id` (`Guid`) | Empty until create sets it |
-| `IAuditable` | `CreatedAt`, `LastModified` (`DateTime`, UTC); `CreatedBy`, `LastModifiedBy` (`string?`) | Times set on create; actor fields stay null |
+| `IAuditable` | `CreatedAt`, `LastModified` (`DateTimeOffset`, UTC); `CreatedBy`, `LastModifiedBy` (`string?`) | Times set on create; actor fields stay null |
 | `IDeletable` | `IsDeleted` (`bool`) | `false` |
 | `IActivable` | `IsActive` (`bool`) | `true` |
 
-Create-product sets `CreatedAt = LastModified = DateTime.UtcNow`, `IsActive = true`, `IsDeleted = false`. Update-product does not rewrite `CreatedAt` or `Id` and sets `LastModified = DateTime.UtcNow`.
+`GenericRepository.Create` sets `CreatedAt` and `LastModified` to the same `DateTimeOffset.UtcNow` value. `GenericRepository.Update` refreshes `LastModified` while preserving `CreatedAt`; delete uses the same update path. Create-product sets identity and lifecycle defaults. Actor fields remain null until Catalog has an authenticated caller.
 
 **Rationale**: Spec assumptions: times only until Catalog has callers; new products are active and not deleted; actor fields may exist and stay empty. UTC avoids local-clock drift in checks (SC-003, SC-004).
 
 **Alternatives considered**:
-- `DateTimeOffset` — slightly richer; `DateTime` UTC is enough and matches existing Catalog types.
+- `DateTime` — UTC conveys the intended timezone, but `DateTimeOffset` makes the offset explicit and is the shared audit timestamp type.
 - Omit actor fields — allowed, but the spec permits them and `IAuditable` is otherwise only timestamps.
 - Rename `IActivable` to `IActivatable` — rejected; requested name is `IActivable`.
 
@@ -44,13 +44,13 @@ Create-product sets `CreatedAt = LastModified = DateTime.UtcNow`, `IsActive = tr
 
 ## 4. Browse query uses standard LINQ on `IDocumentSession.Query<Product>()`
 
-**Decision**: `GetProductsHandler` reads `ICatalogUnitOfWork.Products.FindAll()` (already applies `IsActive` and not `IsDeleted`), then optional name / price / category `Where`, then orders by `LastModified` descending then `Id` ascending, then `Count` / `Skip` / `Take` / `ToList`. Do **not** use Marten-only `ToListAsync` / `CountAsync`. Isolated tests extend the existing `InMemoryDocumentSession` so `Query<Product>()` is an `IMartenQueryable<Product>` whose `Provider` and `Expression` come from the in-memory product list.
+**Decision**: `GetProductsHandler` reads `ICatalogUnitOfWork.Products.FindAll()` (already applies `IsActive` and not `IsDeleted`), then optional name / price / category `Where`, then orders by `LastModified` descending then `Id` ascending, then `ToMaterializedListAsync`. If the provider is Marten, that helper uses Marten `ToListAsync` (Marten 9 forbids sync `ToList()`). Isolated tests still use `InMemoryDocumentSession` whose provider is `System.Linq`; the helper then uses standard `ToList()`.
 
 **Rationale**: FR-015 forbids a live operator store. Feature 003 already uses an in-suite `IDocumentSession` substitute. Marten async extensions do not run on `EnumerableQuery`. Standard LINQ runs on both Marten’s queryable and the substitute.
 
 **Alternatives considered**:
 - Testcontainers PostgreSQL — rejected by FR-015 and SC-007.
-- Call Marten `ToListAsync` — rejected; the in-suite substitute is standard LINQ.
+- Sync `ToList()` in production — rejected; Marten 9 throws “only asynchronous data access is supported.”
 - Page only in service-level tests — fails isolated browse checks (FR-013).
 
 ## 5. Public browse path and validation

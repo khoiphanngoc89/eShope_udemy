@@ -8,6 +8,13 @@
 
 **Input**: User description: "implement get product pagination and add missing unit tests for all Catalog.Api search; put the core model in BuildingBlock; declare IAuditable, IDeletable, and IActivable; implement BaseEntity; Product inherits from BaseEntity; clients can search the product page by name, price, or category"
 
+## Clarifications
+
+### Session 2026-10-31
+
+- Q: What must a failed Catalog request log so Grafana can show where it broke? → A: Request name, duration, and the full stack trace in the log message. HTTP 500 stays a problem response without a stack.
+- Q: How must product-page reads talk to Marten 9? → A: Asynchronous data access only. Sync `ToList()` on a Marten query is a defect.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse a page of catalog products (Priority: P1)
@@ -86,6 +93,8 @@ A developer or reviewer needs confidence that Catalog’s search paths work: get
 - Name, price, and category search are optional on the product page. Omitted or blank name and category mean “no filter on that field.” A supplied name is a case-insensitive contains match. A supplied price is an exact match. A supplied category is a case-insensitive exact match against one of the product’s categories. Combined filters must all match.
 - A negative price search is a validation failure.
 - No matches for a valid search is an empty page and a total of zero, not a not-found result.
+- A failed request’s Grafana/Loki error row must include the stack trace in the log message, not only the request name and duration.
+- Product-page materialization against a live Marten store must be async. Sync `ToList()` fails on Marten 9 with “only asynchronous data access is supported.”
 - This feature must not replace or rewrite the existing create-product or shared logging test suites.
 
 ## Requirements *(mandatory)*
@@ -112,6 +121,8 @@ A developer or reviewer needs confidence that Catalog’s search paths work: get
 - **FR-018**: Products on a page MUST appear in a documented stable order so the same page request against an unchanged catalog is repeatable.
 - **FR-019**: Clients MUST be able to optionally search the product page by name, price, or category. A name match is case-insensitive contains. A price match is exact. A category match is a case-insensitive exact match against one listed category. When more than one search field is supplied, a product MUST match all of them.
 - **FR-020**: Catalog MUST reject a negative price search with a clear validation failure. Omitted or blank name and category MUST mean no filter on that field.
+- **FR-021**: When a Catalog request fails, the error log MUST include the request name, elapsed time, and the full stack trace in the log message so an operator can find the source in Grafana. The public HTTP 500 body MUST NOT include a stack trace.
+- **FR-022**: Product-page reads MUST use asynchronous Marten data access. Synchronous enumeration of a Marten query is not allowed.
 
 ### Key Entities
 

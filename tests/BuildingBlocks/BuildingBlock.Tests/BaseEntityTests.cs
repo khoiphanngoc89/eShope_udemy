@@ -12,8 +12,8 @@ public class BaseEntityTests
         var entity = new SampleEntity();
 
         Assert.Equal(Guid.Empty, entity.Id);
-        Assert.Equal(default, entity.CreatedAt);
-        Assert.Equal(default, entity.LastModified);
+        Assert.Equal(DateTimeOffset.MinValue, entity.CreatedAt);
+        Assert.Equal(DateTimeOffset.MinValue, entity.LastModified);
         Assert.Null(entity.CreatedBy);
         Assert.Null(entity.LastModifiedBy);
         Assert.False(entity.IsDeleted);

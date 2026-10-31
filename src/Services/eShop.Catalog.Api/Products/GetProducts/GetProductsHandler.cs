@@ -1,4 +1,5 @@
 using BuildingBlock.Cqrs;
+using BuildingBlock.Data;
 using BuildingBlock.Models;
 using eShop.Catalog.Api.Data;
 using FluentValidation;
@@ -24,7 +25,7 @@ public sealed class GetProductsValidator : AbstractValidator<GetProductsQuery>
 
 public sealed class GetProductsHandler(ICatalogUnitOfWork unitOfWork) : IQueryHandler<GetProductsQuery, PaginatedResult<Product>>
 {
-    public Task<PaginatedResult<Product>> Handle(GetProductsQuery query, CancellationToken cancellationToken)
+    public async Task<PaginatedResult<Product>> Handle(GetProductsQuery query, CancellationToken cancellationToken)
     {
         var products = unitOfWork.Products.FindAll();
         if (!string.IsNullOrWhiteSpace(query.Name))
@@ -44,14 +45,14 @@ public sealed class GetProductsHandler(ICatalogUnitOfWork unitOfWork) : IQueryHa
             products = products.Where(product => product.Categories.Any(item => item.ToLower() == category));
         }
 
-        var matched = products
+        var matched = await products
             .OrderByDescending(product => product.LastModified)
             .ThenBy(product => product.Id)
-            .ToList();
+            .ToListAsync(cancellationToken);
         var items = matched
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToList();
-        return Task.FromResult(new PaginatedResult<Product>(query.PageNumber, query.PageSize, matched.Count, items));
+        return new PaginatedResult<Product>(query.PageNumber, query.PageSize, matched.Count, items);
     }
 }

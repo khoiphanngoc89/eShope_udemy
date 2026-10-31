@@ -13,7 +13,7 @@ BaseEntity : IAuditable, IDeletable, IActivable
 
 **Success**
 
-- `BaseEntity` exposes `Id`, `CreatedAt`, `LastModified`, `CreatedBy`, `LastModifiedBy`, `IsDeleted`, `IsActive`
+- `BaseEntity` exposes `Id`, `CreatedAt` and `LastModified` (`DateTimeOffset`, UTC), `CreatedBy`, `LastModifiedBy`, `IsDeleted`, `IsActive`
 - A test type can inherit `BaseEntity` without Catalog
 - A new instance is not deleted and is active (`IsDeleted = false`, `IsActive = true`)
 

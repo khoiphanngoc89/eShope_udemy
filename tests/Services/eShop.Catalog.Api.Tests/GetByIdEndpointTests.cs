@@ -83,7 +83,7 @@ public class GetByIdEndpointTests : IAsyncLifetime
 
     private Product StoreProduct(bool isDeleted, bool isActive)
     {
-        var now = DateTime.UtcNow;
+        var now = DateTimeOffset.UtcNow;
         var product = new Product
         {
             Id = Guid.NewGuid(),

@@ -30,10 +30,7 @@ public sealed class UpdateProductHandler(ICatalogUnitOfWork unitOfWork) : IReque
             throw new ProductNotFoundException(command.Id);
         }
 
-        var createdAt = product.CreatedAt;
         command.Adapt(product);
-        product.CreatedAt = createdAt;
-        product.LastModified = DateTime.UtcNow;
         products.Update(product);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

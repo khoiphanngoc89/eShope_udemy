@@ -50,9 +50,9 @@ public class GetProductsHandlerTests
     public async Task Handle_WhenSomeProductsAreInactiveOrDeleted_OmitsThemFromBrowse()
     {
         var memory = new InMemoryDocumentSession();
-        var active = CreateProduct(Guid.NewGuid(), DateTime.UtcNow, isDeleted: false, isActive: true);
-        var inactive = CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-1), isDeleted: false, isActive: false);
-        var deleted = CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-2), isDeleted: true, isActive: true);
+        var active = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, isDeleted: false, isActive: true);
+        var inactive = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), isDeleted: false, isActive: false);
+        var deleted = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-2), isDeleted: true, isActive: true);
         memory.Store(active);
         memory.Store(inactive);
         memory.Store(deleted);
@@ -70,7 +70,7 @@ public class GetProductsHandlerTests
         var memory = new InMemoryDocumentSession();
         var olderId = Guid.Parse("00000000-0000-0000-0000-000000000001");
         var newerId = Guid.Parse("00000000-0000-0000-0000-000000000002");
-        var sameTime = DateTime.UtcNow;
+        var sameTime = DateTimeOffset.UtcNow;
         memory.Store(CreateProduct(olderId, sameTime.AddMinutes(-5), isDeleted: false, isActive: true));
         memory.Store(CreateProduct(newerId, sameTime, isDeleted: false, isActive: true));
         var handler = CreateHandler(memory);
@@ -87,9 +87,9 @@ public class GetProductsHandlerTests
     public async Task Handle_WhenNameIsSupplied_ReturnsCaseInsensitiveContainsMatches()
     {
         var memory = new InMemoryDocumentSession();
-        var trail = CreateProduct(Guid.NewGuid(), DateTime.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
+        var trail = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
         memory.Store(trail);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-1), name: "Helmet", price: 20m, categories: ["gear"]));
+        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Helmet", price: 20m, categories: ["gear"]));
         var handler = CreateHandler(memory);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, Name: "bike"), CancellationToken.None);
@@ -102,9 +102,9 @@ public class GetProductsHandlerTests
     public async Task Handle_WhenPriceIsSupplied_ReturnsExactPriceMatches()
     {
         var memory = new InMemoryDocumentSession();
-        var match = CreateProduct(Guid.NewGuid(), DateTime.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
+        var match = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
         memory.Store(match);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-1), name: "Road Bike", price: 20m, categories: ["bikes"]));
+        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Road Bike", price: 20m, categories: ["bikes"]));
         var handler = CreateHandler(memory);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, Price: 10m), CancellationToken.None);
@@ -117,9 +117,9 @@ public class GetProductsHandlerTests
     public async Task Handle_WhenCategoryIsSupplied_ReturnsCaseInsensitiveCategoryMatches()
     {
         var memory = new InMemoryDocumentSession();
-        var outdoor = CreateProduct(Guid.NewGuid(), DateTime.UtcNow, name: "Tent", price: 50m, categories: ["Outdoor", "camping"]);
+        var outdoor = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Tent", price: 50m, categories: ["Outdoor", "camping"]);
         memory.Store(outdoor);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-1), name: "Trail Bike", price: 10m, categories: ["bikes"]));
+        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Trail Bike", price: 10m, categories: ["bikes"]));
         var handler = CreateHandler(memory);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, Category: "outdoor"), CancellationToken.None);
@@ -132,11 +132,11 @@ public class GetProductsHandlerTests
     public async Task Handle_WhenNamePriceAndCategoryAreSupplied_ReturnsIntersection()
     {
         var memory = new InMemoryDocumentSession();
-        var match = CreateProduct(Guid.NewGuid(), DateTime.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
+        var match = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
         memory.Store(match);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-1), name: "City Bike", price: 10m, categories: ["bikes"]));
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-2), name: "Trail Bike", price: 20m, categories: ["bikes"]));
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-3), name: "Trail Bike", price: 10m, categories: ["gear"]));
+        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "City Bike", price: 10m, categories: ["bikes"]));
+        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-2), name: "Trail Bike", price: 20m, categories: ["bikes"]));
+        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-3), name: "Trail Bike", price: 10m, categories: ["gear"]));
         var handler = CreateHandler(memory);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, Name: "trail", Price: 10m, Category: "bikes"), CancellationToken.None);
@@ -149,10 +149,10 @@ public class GetProductsHandlerTests
     public async Task Handle_WhenSearchMatchesInactiveOrDeleted_OmitsThemFromFilteredTotal()
     {
         var memory = new InMemoryDocumentSession();
-        var visible = CreateProduct(Guid.NewGuid(), DateTime.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
+        var visible = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
         memory.Store(visible);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-1), name: "Trail Bike", price: 10m, categories: ["bikes"], isDeleted: true));
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-2), name: "Trail Bike", price: 10m, categories: ["bikes"], isActive: false));
+        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Trail Bike", price: 10m, categories: ["bikes"], isDeleted: true));
+        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-2), name: "Trail Bike", price: 10m, categories: ["bikes"], isActive: false));
         var handler = CreateHandler(memory);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, Name: "trail"), CancellationToken.None);
@@ -166,7 +166,7 @@ public class GetProductsHandlerTests
 
     private static Product CreateProduct(
         Guid id,
-        DateTime lastModified,
+        DateTimeOffset lastModified,
         bool isDeleted = false,
         bool isActive = true,
         string? name = null,
