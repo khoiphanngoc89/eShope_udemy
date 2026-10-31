@@ -4,3 +4,4 @@ global using MediatR;
 global using eShop.Catalog.Api;
 global using Marten;
 global using Carter;
+global using Mapster;

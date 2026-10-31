@@ -1,17 +1,7 @@
 
+var builder = WebApplication.CreateBuilder(args)
+    .AddInfrastructure();
 
-var builder = WebApplication.CreateBuilder(args);
-
-if (builder.Environment.IsDevelopment())
-{
-    builder.Configuration.AddJsonFile(
-        "appsettings.Development.local.json",
-        optional: true,
-        reloadOnChange: true);
-}
-
-var app = builder.AddCatalogServices().UsePipline();
+var app = builder.AddCatalogServices().UsePipline().Logging();
 
 app.Run();
-
-public partial class Program;

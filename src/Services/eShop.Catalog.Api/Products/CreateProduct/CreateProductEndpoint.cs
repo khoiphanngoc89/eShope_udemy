@@ -14,7 +14,9 @@ public sealed class CreateProductEndpoint : ICarterModule
         .WithName("CreateProduct")
         .WithSummary("Create a product")
         .WithDescription("Creates a product and returns the created product result.")
-        .Produces<CreateProductResult>(StatusCodes.Status201Created);
+        .WithTags("Products")
+        .Produces<CreateProductResult>(StatusCodes.Status201Created)
+        .Produces(StatusCodes.Status400BadRequest);
     }
 
 

@@ -10,7 +10,7 @@ public class CreateProductHandlerTests
     public async Task Handle_WhenProductIsValid_ReturnsNewIdAndStoresMatchingFields()
     {
         var memory = new InMemoryDocumentSession();
-        var handler = new CreateProductHandler(memory.CreateSession());
+        var handler = CreateHandler(memory);
         var command = new CreateProductCommand(
             "Trail Bike",
             1299.50m,
@@ -35,7 +35,7 @@ public class CreateProductHandlerTests
     public async Task Handle_WhenCalledTwice_ReturnsDistinctIds()
     {
         var memory = new InMemoryDocumentSession();
-        var handler = new CreateProductHandler(memory.CreateSession());
+        var handler = CreateHandler(memory);
         var command = new CreateProductCommand("Name", 1m, "Desc", "file.png", ["a"]);
 
         var first = await handler.Handle(command, CancellationToken.None);
@@ -45,4 +45,27 @@ public class CreateProductHandlerTests
         Assert.NotNull(await memory.LoadAsync(first.Id));
         Assert.NotNull(await memory.LoadAsync(second.Id));
     }
+
+    [Fact]
+    public async Task Handle_WhenProductIsValid_SetsSharedItemTraits()
+    {
+        var memory = new InMemoryDocumentSession();
+        var handler = CreateHandler(memory);
+        var command = new CreateProductCommand("Name", 1m, "Desc", "file.png", ["a"]);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+        var stored = await memory.LoadAsync(result.Id);
+
+        Assert.NotNull(stored);
+        Assert.NotEqual(Guid.Empty, stored.Id);
+        Assert.NotEqual(default, stored.CreatedAt);
+        Assert.Equal(stored.CreatedAt, stored.LastModified);
+        Assert.False(stored.IsDeleted);
+        Assert.True(stored.IsActive);
+        Assert.Null(stored.CreatedBy);
+        Assert.Null(stored.LastModifiedBy);
+    }
+
+    private static CreateProductHandler CreateHandler(InMemoryDocumentSession memory) =>
+        new(memory.CreateUnitOfWork());
 }

@@ -75,6 +75,32 @@ public class TraceCorrelationTests
     }
 
     [Fact]
+    public async Task AddAppLogging_WhenActivityIsCurrent_WritesTraceAndSpanIdsToConsole()
+    {
+        var originalOutput = Console.Out;
+        using var output = new StringWriter();
+        Console.SetOut(output);
+
+        try
+        {
+            await using var app = LoggingTestHost.Create();
+            await app.StartAsync();
+
+            using var activity = new Activity("catalog-request").Start();
+            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Trace")
+                .LogInformation("console-traced");
+
+            var logOutput = output.ToString();
+            Assert.Contains($"TraceId: {activity.TraceId}", logOutput);
+            Assert.Contains($"SpanId: {activity.SpanId}", logOutput);
+        }
+        finally
+        {
+            Console.SetOut(originalOutput);
+        }
+    }
+
+    [Fact]
     public async Task AddAppLogging_WhenOpenTelemetryWriteToOmitted_HostStartsAndWritesLocally()
     {
         await using var app = LoggingTestHost.Create(

@@ -12,7 +12,7 @@ namespace BuildBlock.Logging.Extensions;
 public static class LoggingExtensions
 {
     private const string ConsoleTemplate =
-        "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} ({service.name}/{deployment.environment}) {TraceId}{NewLine}{Exception}";
+        "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} ({service.name}/{deployment.environment}) [TraceId: {TraceId} SpanId: {SpanId}]{NewLine}{Exception}";
 
     public static WebApplicationBuilder AddAppLogging(this WebApplicationBuilder builder)
     {
