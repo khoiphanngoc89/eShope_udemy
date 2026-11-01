@@ -56,6 +56,47 @@ Catalog wiring: `Program.cs` → `AddCatalogServices()` / `UsePipline()`. Endpoi
 
 ---
 
+## NuGet
+
+Packages come from **nuget.org**. There is no `nuget.config` and no private feed. Versions live in each `.csproj` (not central package management).
+
+Restore from the repo root (Windows or WSL):
+
+```bash
+dotnet restore eShop.slnx
+```
+
+`dotnet build`, `dotnet test`, and `dotnet publish` restore automatically if needed.
+
+| Project | Package | Version | Role |
+|---------|---------|---------|------|
+| `BuildingBlock` | Carter | 10.0.0 | HTTP modules |
+| | MediatR | 12.5.0 | Commands / queries |
+| | Marten | 9.54.2 | Catalog store (PostgreSQL) |
+| | FluentValidation | 12.2.0 | Request validation |
+| | Mapster | 10.0.13 | DTO mapping |
+| | Elastic.Clients.Elasticsearch | 8.19.13 | Search index client |
+| | Confluent.Kafka | 2.12.0 | Search-sync consumer |
+| | OpenTelemetry.Extensions.Hosting | 1.20.1 | Metrics / traces host |
+| | OpenTelemetry.Exporter.OpenTelemetryProtocol | 1.20.1 | OTLP export |
+| | OpenTelemetry.Instrumentation.AspNetCore | 1.20.1 | ASP.NET metrics |
+| | OpenTelemetry.Instrumentation.Http | 1.20.1 | HTTP client metrics |
+| `BuildBlock.Logging` | Serilog.AspNetCore | 9.0.0 | Request logging |
+| | Serilog.Enrichers.Environment | 3.0.1 | Environment enricher |
+| | Serilog.Sinks.OpenTelemetry | 4.2.0 | Logs → OTLP / Loki |
+| `eShop.Catalog.Api` | Marten | 9.54.2 | Product documents |
+| | Elastic.Serilog.Sinks | 8.18.2 | Catalog Error/Fatal → ES |
+| | Microsoft.AspNetCore.OpenApi | 10.0.1 | OpenAPI |
+| | Microsoft.OpenApi | 2.7.5 | OpenAPI model |
+| | Swashbuckle.AspNetCore.SwaggerUI | 10.3.1 | Swagger UI |
+| Tests | xunit | 2.9.3 | Isolated tests |
+| | NSubstitute | 5.3.0 | Catalog test substitutes |
+| | Microsoft.AspNetCore.Mvc.Testing | 10.0.1 | `WebApplicationFactory` |
+
+Target framework: **net10.0**. Isolated tests do not restore a private Catalog package.
+
+---
+
 ## Run locally
 
 Compose files in `deploy/` stay as the service identity list. Running compose is not required. Official local run is k3s in Ubuntu (below).
@@ -200,6 +241,46 @@ Then open these on Windows (the script binds `--address 0.0.0.0`):
 Catalog create / get-by-id work as soon as `catalogapi` is `1/1`, even if Kafka or Grafana is not Ready.
 
 After `lgtm` and the metric exporters have been Ready about one minute (search may still be starting), open Ops/Infra (`http://localhost:3000/d/eshop-ops-infra/ops-infra`, admin / admin). Store, Catalog.Api, Kafka, connector, search index, Kibana, Kafka UI, and exporters must appear: Ready = healthy with samples; not-ready or stopped = not healthy. Empty panels are a defect. Collector and Grafana need not appear. If Windows `localhost` fails, use `127.0.0.1`. Create and get-by-id still succeed if that metrics path is down.
+
+### 4b. Connect without the script (NodePort)
+
+Grafana, Kafka UI, Kibana, Catalog, and Postgres publish NodePorts. Those stay reachable after you close the port-forward script. Kubernetes NodePort cannot be `5000` or `5432`, so Catalog is `:30050` and Postgres is `:30432`.
+
+**`EXTERNAL-IP` stays `<none>`.** That column is for LoadBalancer. This cluster installed k3s with `--disable servicelb`, so nothing assigns an External-IP. ClusterIP never gets one either. That is expected. You do **not** wait for an External-IP.
+
+Access is **WSL IP + NodePort** (same idea as Grafana `:30000`).
+
+Apply if you have not already, then read the NodePort column:
+
+```bash
+sudo k3s kubectl apply -k deploy/k8s
+sudo k3s kubectl -n catalog get svc catalogapi catalogdb
+```
+
+Expect `8080:30050/TCP` and `5432:30432/TCP`. `EXTERNAL-IP` is still `<none>`.
+
+In WSL, get the Ubuntu address:
+
+```bash
+hostname -I | awk '{print $1}'
+```
+
+On Windows, open that IP (not `localhost`):
+
+| Service | URL |
+|---------|-----|
+| Grafana | `http://<wsl-ip>:30000` (admin / admin) |
+| Grafana Ops/Infra | `http://<wsl-ip>:30000/d/eshop-ops-infra/ops-infra` |
+| Kafka UI | `http://<wsl-ip>:30080` |
+| Kibana | `http://<wsl-ip>:30561` |
+| Catalog | `http://<wsl-ip>:30050` |
+| Postgres | Host `<wsl-ip>`, port `30432`, db/user/password `catalog` |
+
+`localhost:5000` still needs the port-forward script. Optional Catalog-only tunnel (leave it running):
+
+```bash
+sudo k3s kubectl -n catalog port-forward svc/catalogapi 5000:8080 --address 0.0.0.0
+```
 
 ### 5. Stop
 

@@ -53,10 +53,11 @@ metadata:
   name: catalogdb
   namespace: catalog
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: catalogdb
   ports:
     - name: postgres
       port: 5432
       targetPort: 5432
+      nodePort: 30432

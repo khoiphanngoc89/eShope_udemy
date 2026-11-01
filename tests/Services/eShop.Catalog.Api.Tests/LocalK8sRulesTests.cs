@@ -45,8 +45,10 @@ public class LocalK8sRulesTests
         Assert.Contains("POSTGRES_PASSWORD", yaml, StringComparison.Ordinal);
         Assert.Contains("POSTGRES_DB", yaml, StringComparison.Ordinal);
         Assert.Contains("wal_level=logical", yaml, StringComparison.Ordinal);
-        Assert.Contains("ClusterIP", yaml, StringComparison.Ordinal);
+        Assert.Contains("type: NodePort", yaml, StringComparison.Ordinal);
+        Assert.Contains("nodePort: 30432", yaml, StringComparison.Ordinal);
         Assert.Contains("5432", yaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("nodePort: 5000", yaml, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("pg_isready -U catalog -d catalog", yaml, StringComparison.Ordinal);
         Assert.Contains("catalogdb-data", yaml, StringComparison.Ordinal);
         Assert.Contains("/var/lib/postgresql/data", yaml, StringComparison.Ordinal);
@@ -64,8 +66,8 @@ public class LocalK8sRulesTests
         Assert.Contains("imagePullPolicy: Never", yaml, StringComparison.Ordinal);
         Assert.Contains("replicas: 1", yaml, StringComparison.Ordinal);
         Assert.Contains("8080", yaml, StringComparison.Ordinal);
-        Assert.Contains("ClusterIP", yaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("NodePort", yaml, StringComparison.Ordinal);
+        Assert.Contains("type: NodePort", yaml, StringComparison.Ordinal);
+        Assert.Contains("nodePort: 30050", yaml, StringComparison.Ordinal);
         Assert.DoesNotContain("nodePort: 5000", yaml, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("ConnectionStrings__CatalogDb", yaml, StringComparison.Ordinal);
         Assert.Contains("Host=catalogdb;Port=5432;Database=catalog;Username=catalog;Password=catalog", yaml, StringComparison.Ordinal);
@@ -222,8 +224,8 @@ public class LocalK8sRulesTests
         Assert.Contains("type: NodePort", kibana, StringComparison.Ordinal);
         Assert.Contains("nodePort: 30561", kibana, StringComparison.Ordinal);
 
-        Assert.Contains("ClusterIP", catalogApi, StringComparison.Ordinal);
-        Assert.DoesNotContain("NodePort", catalogApi, StringComparison.Ordinal);
+        Assert.Contains("type: NodePort", catalogApi, StringComparison.Ordinal);
+        Assert.Contains("nodePort: 30050", catalogApi, StringComparison.Ordinal);
         Assert.DoesNotContain("nodePort: 5000", catalogApi, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -269,6 +271,16 @@ public class LocalK8sRulesTests
         Assert.Contains("`viewer`", readme, StringComparison.Ordinal);
         Assert.Contains("compose files stay", readme, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("http://localhost:3000/d/eshop-ops-infra/ops-infra", readme, StringComparison.Ordinal);
+        Assert.Contains("hostname -I", readme, StringComparison.Ordinal);
+        Assert.Contains(":30000", readme, StringComparison.Ordinal);
+        Assert.Contains(":30080", readme, StringComparison.Ordinal);
+        Assert.Contains(":30561", readme, StringComparison.Ordinal);
+        Assert.Contains(":30050", readme, StringComparison.Ordinal);
+        Assert.Contains(":30432", readme, StringComparison.Ordinal);
+        Assert.Contains("EXTERNAL-IP", readme, StringComparison.Ordinal);
+        Assert.Contains("<none>", readme, StringComparison.Ordinal);
+        Assert.Contains("8080:30050/TCP", readme, StringComparison.Ordinal);
+        Assert.Contains("5432:30432/TCP", readme, StringComparison.Ordinal);
         Assert.Contains("empty", readme, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("defect", readme, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("still be starting", readme, StringComparison.OrdinalIgnoreCase);
