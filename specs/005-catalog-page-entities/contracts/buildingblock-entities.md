@@ -39,6 +39,28 @@ PaginatedResult<T>(PageNumber, PageSize, TotalCount, Items)
 - Catalog invents a one-off page DTO and does not use `PaginatedResult<T>`
 - Isolated checks require the Catalog host
 
+## 3. Shared Elasticsearch search store
+
+```text
+ISearchStore<T> where T : BaseEntity
+SearchQuery
+InMemorySearchStore<T>
+ElasticsearchSearchStore<T>
+SearchIndexer<T>
+SearchIndexUnavailableException
+```
+
+**Success**
+
+- A test type that inherits `BaseEntity` can page, filter, upsert, and delete through `InMemorySearchStore<T>` without Catalog
+- A Debezium-shaped payload upserts or deletes through `SearchIndexer<T>`
+- Index outage throws `SearchIndexUnavailableException` (`ServiceUnavailableException` → HTTP 503)
+
+**Failure of the feature**
+
+- A later service copies Catalog search types instead of using `BuildingBlock.Search`
+- Catalog browse reads Marten instead of `ISearchStore<Product>`
+
 ## Out of scope
 
 - Serilog / `AddAppLogging`

@@ -1,3 +1,4 @@
+using BuildingBlock.Search;
 using eShop.Catalog.Api.Models;
 using eShop.Catalog.Api.Products.CreateProduct;
 using eShop.Catalog.Api.Tests.Support;
@@ -70,6 +71,19 @@ public class CreateProductHandlerTests
         Assert.True(stored.IsActive);
         Assert.Null(stored.CreatedBy);
         Assert.Null(stored.LastModifiedBy);
+    }
+
+    [Fact]
+    public async Task Handle_WhenProductIsValid_DoesNotWriteTheSearchIndex()
+    {
+        var memory = new InMemoryDocumentSession();
+        var search = new InMemorySearchStore<Product>();
+        var handler = CreateHandler(memory);
+        var command = new CreateProductCommand("Name", 1, 1m, 0m, 0m, 0m, "Desc", "file.png", ["a"]);
+
+        await handler.Handle(command, CancellationToken.None);
+
+        Assert.Equal(0, search.Count);
     }
 
     private static CreateProductHandler CreateHandler(InMemoryDocumentSession memory) =>

@@ -1,6 +1,6 @@
-# Implementation Plan: Paginated Catalog Browse and Shared Item Traits
+# Implementation Plan: Paginated Catalog Browse, Shared Item Traits, and Search Sync
 
-**Branch**: `005-catalog-page-entities` | **Date**: 2026-10-31 | **Spec**: [spec.md](./spec.md)
+**Branch**: `005-catalog-page-entities` | **Date**: 2026-11-01 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/005-catalog-page-entities/spec.md`
 
@@ -8,29 +8,29 @@
 
 ## Summary
 
-Add a public paginated product browse path, optional name/price/category search on that path, and put the shared item base plus page model in `BuildingBlock`. Catalog `Product` inherits `BaseEntity` (`IAuditable`, `IDeletable`, `IActivable`). Create and update keep their public paths and set audit / active / deleted defaults. Get-by-id treats a deleted product as not found. Isolated and service-level checks cover get-by-id, browse, and search; existing create-product and logging suites stay.
+Keep the shared item base, page model, and Elasticsearch search store in `BuildingBlock`. Catalog `Product` stays on `BaseEntity` and uses `ISearchStore<Product>`. Get-by-id, create, and update stay on the Marten catalog store. Change `GET /products` so browse and name/cost/category search read Elasticsearch. Sync the index with production-grade CDC: Debezium snapshots then streams `mt_doc_product` onto Kafka topics prefixed `eshop.catalog.sync`; a shared hosted indexer upserts or deletes Elasticsearch documents. Writes do not wait for search and do not dual-write the index. Search-index outage returns HTTP 503; get-by-id still works. Operator UIs: Kafka UI for prefixed topics, Kibana on port 5601 for `catalog-products`, Grafana Tempo Explore for a Catalog request-trace waterfall after traffic (no Tempo service graph). Metrics: search latency, search errors, sync lag, plus existing failed-request logs and indexer failure logs.
 
-Technical approach: `PaginationRequest` / `PaginatedResult<T>` and the four entity contracts in `BuildingBlock`. `GET /products` uses `IQuery` + FluentValidation (page ≥ 1, size 1–100, price ≥ 0 when supplied) and standard LINQ on `ICatalogUnitOfWork.Products.FindAll()` (active, not-deleted, optional name contains / exact price / category match, `LastModified` desc, `Id` asc). Extend the existing in-suite session substitute so isolated browse does not need Postgres. Map `ValidationException` to HTTP 400 on the existing `WithException` helper; add `WithException` to get-by-id so missing/deleted returns 404.
+Technical approach: BuildingBlock `ISearchStore<T>` (Elasticsearch in compose, in-memory in tests), `SearchIndexUnavailableException` → 503, OpenTelemetry traces + metrics on the existing OTLP path (same LGTM endpoint as logs), Debezium + Kafka + Elasticsearch + Kafka UI + Kibana in the existing compose pair, `wal_level=logical` on `catalogdb`. No new .csproj. Isolated `dotnet test` does not start Kafka, Elasticsearch, Kafka UI, Kibana, or Grafana.
 
 ## Technical Context
 
 **Language/Version**: C# / .NET 10.0 (same as Catalog and existing test projects)
 
-**Primary Dependencies**: Existing Catalog stack — MediatR, Carter, FluentValidation, Mapster, Marten 9. Test: xUnit, `Microsoft.AspNetCore.Mvc.Testing`, NSubstitute (already in Catalog tests)
+**Primary Dependencies**: Existing Catalog stack — MediatR, Carter, FluentValidation, Mapster, Marten 9. New: `Elastic.Clients.Elasticsearch`, `Confluent.Kafka`. Compose: PostgreSQL 16 (logical decoding), Apache Kafka KRaft, Debezium Connect, Elasticsearch 8, `provectuslabs/kafka-ui`, official Kibana 8. Test: xUnit, `Microsoft.AspNetCore.Mvc.Testing`, NSubstitute
 
-**Storage**: Isolated checks and service-level host use the in-suite `IDocumentSession` substitute (dictionary of `Product`s, plus `Query<Product>()`). No Testcontainers, no live Postgres, no operator `CatalogDb`. Dummy connection string only to satisfy `DatabaseOptions` ValidateOnStart.
+**Storage**: Catalog store = Marten on PostgreSQL (`catalogdb`). Search index = Elasticsearch (`catalog-products`). Sync log = Kafka topics `eshop.catalog.sync*`. Isolated / service-level `dotnet test` = in-suite Marten substitute + `InMemorySearchStore<Product>`. No Testcontainers.
 
-**Testing**: xUnit. Isolated BuildingBlock checks in `tests/BuildingBlocks/BuildingBlock.Tests`. Isolated and service-level Catalog checks in `tests/Services/eShop.Catalog.Api.Tests`. Existing `tests/BuildingBlocks/BuildBlock.Logging.Tests` stays unchanged.
+**Testing**: xUnit. Isolated BuildingBlock checks in `tests/BuildingBlocks/BuildingBlock.Tests`. Isolated and service-level Catalog checks in `tests/Services/eShop.Catalog.Api.Tests`. Existing `tests/BuildingBlocks/BuildBlock.Logging.Tests` stays unchanged. Isolated trace checks listen in-process (no Tempo). Compose quickstart proves 5-second freshness, Kafka UI, Kibana, and Grafana Tempo Explore after one Catalog request.
 
-**Target Platform**: Local developer workstation and CI (`dotnet test`). No Grafana/Loki process.
+**Target Platform**: Local developer workstation and CI (`dotnet test`). Optional Docker Desktop compose for search-sync and operator UIs. No Grafana/Loki process for automated checks.
 
-**Project Type**: ASP.NET Catalog service + existing class-library building block (no new project)
+**Project Type**: ASP.NET Catalog service + existing class-library building block + existing compose pair (no new project)
 
-**Performance Goals**: Isolated Catalog + BuildingBlock suites under 2 minutes (SC-007). A 25-product page under 5 seconds on the service-level host (SC-001).
+**Performance Goals**: Isolated Catalog + BuildingBlock suites under 2 minutes (SC-007). A 25-product page under 5 seconds on the service-level host (SC-001). Under normal compose sync, a committed write is searchable within 5 seconds (SC-014).
 
-**Constraints**: No public delete or activate routes (FR-017). Optional name/price/category search is in scope on `GET /products` (FR-019, FR-020). No change to Serilog/OTLP or `deploy/` compose. No rewrite of create-product or logging tests (FR-016). Persistence reuses `IRepository<T>` / `ICatalogUnitOfWork`.
+**Constraints**: No public delete or activate routes (FR-017). No dual-write of Elasticsearch on create/update (FR-027). Writes and get-by-id remain available when search, Kafka, Kafka UI, Kibana, or Tempo are down (FR-024, FR-033, FR-034). All search-sync topics use prefix `eshop.catalog.sync` (FR-029). No rewrite of create-product or logging tests (FR-016). Catalog startup must not require Grafana, Tempo, Kafka, Elasticsearch, Kafka UI, or Kibana. No Tempo service graph.
 
-**Scale/Scope**: One new Catalog feature folder (`Products/GetProducts`), shared entity + pagination types in `BuildingBlock`, get-by-id/create/update handler seams, Catalog + BuildingBlock test files. Logging suite remains a third test project.
+**Scale/Scope**: One Catalog search store + hosted indexer, compose services for Kafka / Connect / Elasticsearch / Kafka UI / Kibana, OpenTelemetry meters and request traces to existing LGTM Tempo, get-products handler read-source change. Logging suite remains a third test project.
 
 ## Constitution Check
 
@@ -40,15 +40,15 @@ Technical approach: `PaginationRequest` / `PaginatedResult<T>` and the four enti
 
 | Gate | Result | Evidence |
 |------|--------|----------|
-| Library-first | PASS | Shared item base and page model go into the existing `BuildingBlock` library (FR-008, FR-012). No new project. |
-| Test-first (non-negotiable) | PASS | Red: BuildingBlock entity/page tests and Catalog get-by-id / get-products / update tests before production types and handlers. Green: smallest handler and type changes that pass. |
-| Integration / contract tests | PASS | Browse and get-by-id contracts in [contracts/](./contracts/). Service-level host hits `GET /products` and `GET /products/{id}`. BuildingBlock types contracted in [contracts/buildingblock-entities.md](./contracts/buildingblock-entities.md). |
-| Observability | PASS | Do not change diagnostic export or Loki. Isolated checks run with Grafana down (FR-015). |
-| Simplicity / abstraction ban | PASS | Reuse `ICatalogUnitOfWork.Products`, `WithException`, `ValidationBehavior`, and the existing in-suite session substitute. Search is extra query parameters and LINQ `Where` on the existing browse handler, not a new search service. |
-| CLI interface | N/A | Operators run `dotnet test` (documented in quickstart). |
+| Library-first | PASS | Shared item base, page model, and Elasticsearch search store (`ISearchStore<T>`, `SearchQuery`, indexer) stay in `BuildingBlock`. No new project. |
+| Test-first (non-negotiable) | PASS | Red: search-store, indexer, 503, and meter tests before the Elasticsearch client and Kafka consumer. Green: smallest handler swap and hosted service that pass. |
+| Integration / contract tests | PASS | Browse, get-by-id, search-sync, and observability contracts in [contracts/](./contracts/). Service-level host hits `GET /products` and `GET /products/{id}`. Compose quickstart hits Kafka UI, Kibana, and Grafana Tempo Explore. |
+| Observability | PASS | Reuse failed-request logs and OTLP. Add search duration, search errors, sync lag, indexer failure logs, and Catalog request traces in Grafana Tempo Explore. Isolated checks run with Grafana, Tempo, Kafka UI, and Kibana down. |
+| Simplicity / abstraction ban | PASS | One generic `ISearchStore<T>`, one hosted indexer, existing compose pair. No Search microservice. Debezium ES sink rejected (incubating). Dual-write rejected by spec. |
+| CLI interface | N/A | Operators run `dotnet test` and documented `docker compose` commands (quickstart). |
 | Spec-first | PASS | Spec exists at `specs/005-catalog-page-entities/spec.md`. |
 
-**Post-design re-check**: PASS. Phase 1 adds entity/page models, two HTTP contracts, one library contract, and a `dotnet test` quickstart. Name/price/category search stays on `GET /products`. Create/update public paths stay. Delete/activate public paths stay out.
+**Post-design re-check**: PASS. Phase 1 adds the search document, sync event, topic list, 503 browse contract, observability contract (logs, meters, Tempo request-trace waterfall), Kafka UI + Kibana operator contract, and a `dotnet test` + compose quickstart. Create/update public paths stay. Delete/activate public paths stay out. Catalog still starts if search UIs or Tempo are down. Tempo service graph stays out.
 
 ## Project Structure
 
@@ -63,7 +63,9 @@ specs/005-catalog-page-entities/
 ├── contracts/
 │   ├── get-products-api.md
 │   ├── get-product-by-id-api.md
-│   └── buildingblock-entities.md
+│   ├── buildingblock-entities.md
+│   ├── search-sync.md
+│   └── search-observability.md
 └── checklists/
     └── requirements.md
 ```
@@ -72,43 +74,43 @@ specs/005-catalog-page-entities/
 
 ```text
 src/BuildingBlocks/BuildingBlock/
-├── Models/
-│   ├── IAuditable.cs
-│   ├── IDeletable.cs
-│   ├── IActivable.cs
-│   ├── BaseEntity.cs
-│   ├── PaginationRequest.cs
-│   └── PaginatedResult.cs
-└── Extensions/EndpointExceptionExtension.cs   # map ValidationException → 400
+├── Models/                                      # existing BaseEntity + page types
+├── Search/                                      # ISearchStore<T>, SearchQuery, ES/in-memory stores, indexer
+├── Extensions/EndpointExceptionExtension.cs     # add 503 for search-index unavailable
+├── Extensions/SearchServiceCollectionExtensions.cs
+└── Extensions/OpenTelemetryExtensions.cs        # traces + meters; listen to eShop.Application
 
 src/Services/eShop.Catalog.Api/
-├── Models/Product.cs                          # inherit BaseEntity; remove local Id
-├── Products/CreateProduct/CreateProductHandler.cs
-├── Products/UpdateProduct/UpdateProductHandler.cs
-├── Products/GetById/GetByIdHandler.cs         # deleted → not found
-├── Products/GetById/GetByIdEndpoint.cs        # WithException
-└── Products/GetProducts/
-    ├── GetProductsHandler.cs
-    └── GetProductsEndpoint.cs
+├── Models/Product.cs
+├── Products/GetById/                            # unchanged store path
+├── Products/CreateProduct/                      # no ES write
+├── Products/UpdateProduct/                      # no ES write
+├── Products/GetProducts/
+│   ├── GetProductsHandler.cs                    # map GetProductsQuery → SearchQuery
+│   └── GetProductsEndpoint.cs                   # produce 503
+└── Search/CatalogSearchMetrics.cs               # Catalog meter names only
+
+deploy/
+├── compose.yaml                                 # add kafka, connect, elasticsearch, kafka-ui, kibana
+└── compose.override.yaml                        # ports, wal_level=logical, local-dev URLs
 
 tests/BuildingBlocks/BuildingBlock.Tests/
-├── BaseEntityTests.cs                         # US2 / US3 isolated
-└── PaginatedResultTests.cs                    # US3 isolated
+└── SearchStoreTests.cs                          # shared store + indexer
 
 tests/Services/eShop.Catalog.Api.Tests/
-├── Support/InMemoryDocumentSession.cs         # Query<Product>() stub
-├── CreateProductHandlerTests.cs               # add trait assertions only
-├── UpdateProductHandlerTests.cs               # US2 isolated
-├── GetByIdHandlerTests.cs
-├── GetByIdEndpointTests.cs
-├── GetProductsHandlerTests.cs
-└── GetProductsEndpointTests.cs
+├── GetProductsHandlerTests.cs                   # index-backed browse + outage
+├── GetProductsEndpointTests.cs                  # 200 / 400 / 503
+├── ProductSearchIndexerTests.cs                 # Debezium payload → upsert/delete
+└── CatalogSearchMetricsTests.cs
 
-tests/BuildingBlocks/BuildBlock.Logging.Tests/ # unchanged (FR-016)
+tests/BuildingBlocks/BuildBlock.Logging.Tests/   # unchanged (FR-016)
 ```
 
-**Structure Decision**: Keep Catalog tests next to the service and BuildingBlock tests next to the existing BuildingBlock suite. Put requested models in `BuildingBlock/Models`. Add one Catalog feature folder for browse. Do not add `deploy/` work. Do not put Catalog tests inside the logging project.
+**Structure Decision**: Keep reusable Elasticsearch search types in `BuildingBlock.Search`. Catalog keeps Product query mapping, index name `catalog-products`, topic `eshop.catalog.sync.public.mt_doc_product`, and Catalog meter names. Point Catalog compose OTLP traces at the same LGTM endpoint as logs. Extend the existing compose pair for Kafka, Connect, Elasticsearch, Kafka UI, and Kibana. Do not put Catalog tests inside the logging project. Do not add a second compose file. Do not add a Tempo service-graph pipeline.
 
 ## Complexity Tracking
 
-> No constitution violations to justify.
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|-------------------------------------|
+| Kafka + Debezium + Elasticsearch + Kafka UI + Kibana in compose | Spec requires production-grade CDC search, prefixed topics, Kafka UI, and Kibana | Keep Marten LINQ on `GET /products` — rejected by FR-001 / FR-027 after clarification |
+| `ISearchStore<T>` seam | Browse must be testable without Elasticsearch (FR-015, SC-007) | Live ES in every `dotnet test` — breaks the 2-minute isolated budget |

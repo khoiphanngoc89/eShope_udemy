@@ -1,0 +1,19 @@
+{
+  "name": "eshop-catalog-product",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "catalogdb",
+    "database.port": "5432",
+    "database.user": "catalog",
+    "database.password": "catalog",
+    "database.dbname": "catalog",
+    "topic.prefix": "eshop.catalog.sync",
+    "plugin.name": "pgoutput",
+    "slot.name": "eshop_catalog_sync",
+    "publication.autocreate.mode": "filtered",
+    "table.include.list": "public.mt_doc_product",
+    "snapshot.mode": "initial",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:9092",
+    "schema.history.internal.kafka.topic": "eshop.catalog.sync.schema-history"
+  }
+}

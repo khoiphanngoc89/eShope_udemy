@@ -1,6 +1,9 @@
-using BuildingBlock.Data;
-using FluentValidation;
+using System.Diagnostics;
+using BuildingBlock.Exceptions;
 using BuildingBlock.Models;
+using BuildingBlock.Search;
+using eShop.Catalog.Api.Search;
+using FluentValidation;
 
 namespace eShop.Catalog.Api.Products.GetProducts;
 
@@ -43,51 +46,68 @@ public sealed class GetProductsValidator : AbstractValidator<GetProductsQuery>
     }
 }
 
-public sealed class GetProductsHandler(ICatalogUnitOfWork unitOfWork) : IQueryHandler<GetProductsQuery, PaginatedResult<Product>>
+public sealed class GetProductsHandler(ISearchStore<Product> searchStore) : IQueryHandler<GetProductsQuery, PaginatedResult<Product>>
 {
     public async Task<PaginatedResult<Product>> Handle(GetProductsQuery query, CancellationToken cancellationToken)
     {
-        var products = unitOfWork.Products.FindAll();
-        if (!string.IsNullOrWhiteSpace(query.Name))
+        var stopwatch = Stopwatch.StartNew();
+        try
         {
-            var name = query.Name.Trim().ToLower();
-            products = products.Where(product => product.Name.ToLower().Contains(name));
+            var result = await searchStore.SearchAsync(query.ToSearchQuery(), cancellationToken);
+            CatalogSearchMetrics.RecordDuration(stopwatch.Elapsed.TotalMilliseconds);
+            return result;
         }
-
-        if (query.CostPrice is { } price)
+        catch (SearchIndexUnavailableException)
         {
-            products = products.Where(product => product.CostPrice == price);
+            CatalogSearchMetrics.RecordDuration(stopwatch.Elapsed.TotalMilliseconds);
+            CatalogSearchMetrics.RecordError();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            CatalogSearchMetrics.RecordDuration(stopwatch.Elapsed.TotalMilliseconds);
+            CatalogSearchMetrics.RecordError();
+            throw new SearchIndexUnavailableException("Search index is unavailable", ex);
+        }
+    }
+}
+
+internal static class GetProductsQuerySearchMapping
+{
+    public static SearchQuery ToSearchQuery(this GetProductsQuery query)
+    {
+        var exact = new Dictionary<string, object?>();
+        if (query.CostPrice is { } costPrice)
+        {
+            exact[nameof(Product.CostPrice)] = costPrice;
         }
 
         if (query.SewingCost is { } sewingCost)
         {
-            products = products.Where(product => product.SewingCost == sewingCost);
+            exact[nameof(Product.SewingCost)] = sewingCost;
         }
 
         if (query.FabricCostAccessoriesCost is { } fabricCost)
         {
-            products = products.Where(product => product.FabricCostAccessoriesCost == fabricCost);
+            exact[nameof(Product.FabricCostAccessoriesCost)] = fabricCost;
         }
 
         if (query.PackagingCost is { } packagingCost)
         {
-            products = products.Where(product => product.PackagingCost == packagingCost);
+            exact[nameof(Product.PackagingCost)] = packagingCost;
         }
 
-        if (!string.IsNullOrWhiteSpace(query.Category))
+        return new SearchQuery
         {
-            var category = query.Category.Trim().ToLower();
-            products = products.Where(product => product.Categories.Any(item => item.ToLower() == category));
-        }
-
-        var matched = await products
-            .OrderByDescending(product => product.LastModified)
-            .ThenBy(product => product.Id)
-            .ToListAsync(cancellationToken);
-        var items = matched
-            .Skip((query.PageNumber - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .ToList();
-        return new PaginatedResult<Product>(query.PageNumber, query.PageSize, matched.Count, items);
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize,
+            ContainsField = string.IsNullOrWhiteSpace(query.Name) ? null : nameof(Product.Name),
+            ContainsValue = query.Name,
+            ExactMatches = exact,
+            CollectionContainsField = string.IsNullOrWhiteSpace(query.Category) ? null : nameof(Product.Categories),
+            CollectionContainsValue = query.Category,
+            OrderBy = query.OrderBy.ToString(),
+            OrderDirection = query.OrderDirection
+        };
     }
 }

@@ -1,17 +1,29 @@
+using BuildingBlock.Exceptions;
+using BuildingBlock.Search;
 using eShop.Catalog.Api.Models;
 using eShop.Catalog.Api.Products.GetProducts;
-using eShop.Catalog.Api.Tests.Support;
 
 namespace eShop.Catalog.Api.Tests;
 
 public class GetProductsHandlerTests
 {
     [Fact]
+    public async Task Handle_WhenSearchIndexIsUnavailable_DoesNotQueryTheCatalogStore()
+    {
+        var store = new InMemorySearchStore<Product> { Unavailable = true };
+        var handler = CreateHandler(store);
+
+        await Assert.ThrowsAsync<SearchIndexUnavailableException>(() =>
+            handler.Handle(new GetProductsQuery(1, 10), CancellationToken.None));
+        Assert.Equal(0, store.Count);
+    }
+
+    [Fact]
     public async Task Handle_WhenMoreProductsThanPageSize_ReturnsOnlyThatPageAndTotalCount()
     {
-        var memory = new InMemoryDocumentSession();
-        Seed(memory, 5);
-        var handler = CreateHandler(memory);
+        var store = new InMemorySearchStore<Product>();
+        Seed(store, 5);
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(1, 2), CancellationToken.None);
 
@@ -24,8 +36,8 @@ public class GetProductsHandlerTests
     [Fact]
     public async Task Handle_WhenStoreIsEmpty_ReturnsEmptyItemsAndZeroTotal()
     {
-        var memory = new InMemoryDocumentSession();
-        var handler = CreateHandler(memory);
+        var store = new InMemorySearchStore<Product>();
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10), CancellationToken.None);
 
@@ -36,9 +48,9 @@ public class GetProductsHandlerTests
     [Fact]
     public async Task Handle_WhenPageIsPastTheEnd_ReturnsEmptyItemsAndSameTotal()
     {
-        var memory = new InMemoryDocumentSession();
-        Seed(memory, 3);
-        var handler = CreateHandler(memory);
+        var store = new InMemorySearchStore<Product>();
+        Seed(store, 3);
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(5, 2), CancellationToken.None);
 
@@ -49,14 +61,14 @@ public class GetProductsHandlerTests
     [Fact]
     public async Task Handle_WhenSomeProductsAreInactiveOrDeleted_OmitsThemFromBrowse()
     {
-        var memory = new InMemoryDocumentSession();
+        var store = new InMemorySearchStore<Product>();
         var active = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, isDeleted: false, isActive: true);
         var inactive = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), isDeleted: false, isActive: false);
         var deleted = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-2), isDeleted: true, isActive: true);
-        memory.Store(active);
-        memory.Store(inactive);
-        memory.Store(deleted);
-        var handler = CreateHandler(memory);
+        store.Store(active);
+        store.Store(inactive);
+        store.Store(deleted);
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10), CancellationToken.None);
 
@@ -67,13 +79,13 @@ public class GetProductsHandlerTests
     [Fact]
     public async Task Handle_WhenCalledTwiceAgainstUnchangedStore_ReturnsSameOrder()
     {
-        var memory = new InMemoryDocumentSession();
+        var store = new InMemorySearchStore<Product>();
         var olderId = Guid.Parse("00000000-0000-0000-0000-000000000001");
         var newerId = Guid.Parse("00000000-0000-0000-0000-000000000002");
         var sameTime = DateTimeOffset.UtcNow;
-        memory.Store(CreateProduct(olderId, sameTime.AddMinutes(-5), isDeleted: false, isActive: true));
-        memory.Store(CreateProduct(newerId, sameTime, isDeleted: false, isActive: true));
-        var handler = CreateHandler(memory);
+        store.Store(CreateProduct(olderId, sameTime.AddMinutes(-5), isDeleted: false, isActive: true));
+        store.Store(CreateProduct(newerId, sameTime, isDeleted: false, isActive: true));
+        var handler = CreateHandler(store);
         var query = new GetProductsQuery(1, 10);
 
         var first = await handler.Handle(query, CancellationToken.None);
@@ -86,7 +98,7 @@ public class GetProductsHandlerTests
     [Fact]
     public async Task Handle_WhenOrderIsNotSpecified_OrdersByCreatedAtDescending()
     {
-        var memory = new InMemoryDocumentSession();
+        var store = new InMemorySearchStore<Product>();
         var olderCreated = CreateProduct(
             Guid.Parse("00000000-0000-0000-0000-000000000001"),
             DateTimeOffset.UtcNow,
@@ -101,9 +113,9 @@ public class GetProductsHandlerTests
         newerCreated.CreatedAt = DateTimeOffset.UtcNow;
         newerCreated.LastModified = DateTimeOffset.UtcNow.AddDays(-1);
 
-        memory.Store(olderCreated);
-        memory.Store(newerCreated);
-        var handler = CreateHandler(memory);
+        store.Store(olderCreated);
+        store.Store(newerCreated);
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(), CancellationToken.None);
 
@@ -113,11 +125,11 @@ public class GetProductsHandlerTests
     [Fact]
     public async Task Handle_WhenNameIsSupplied_ReturnsCaseInsensitiveContainsMatches()
     {
-        var memory = new InMemoryDocumentSession();
+        var store = new InMemorySearchStore<Product>();
         var trail = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
-        memory.Store(trail);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Helmet", price: 20m, categories: ["gear"]));
-        var handler = CreateHandler(memory);
+        store.Store(trail);
+        store.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Helmet", price: 20m, categories: ["gear"]));
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, Name: "bike"), CancellationToken.None);
 
@@ -126,13 +138,35 @@ public class GetProductsHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenVietnameseFullNameIsSupplied_ReturnsThatProduct()
+    {
+        var store = new InMemorySearchStore<Product>();
+        var dress = CreateProduct(
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow,
+            name: "Đầm Alice - size 1 (Xanh dương)",
+            price: 146779m,
+            categories: []);
+        store.Store(dress);
+        store.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Đầm Lily size 3 (Trắng phối yếm hồng)", price: 205000m, categories: []));
+        var handler = CreateHandler(store);
+
+        var result = await handler.Handle(
+            new GetProductsQuery(1, 10, Name: "Đầm Alice - size 1 (Xanh dương)"),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal([dress.Id], result.Items.Select(item => item.Id));
+    }
+
+    [Fact]
     public async Task Handle_WhenCostPriceIsSupplied_ReturnsExactMatches()
     {
-        var memory = new InMemoryDocumentSession();
+        var store = new InMemorySearchStore<Product>();
         var match = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
-        memory.Store(match);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Road Bike", price: 20m, categories: ["bikes"]));
-        var handler = CreateHandler(memory);
+        store.Store(match);
+        store.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Road Bike", price: 20m, categories: ["bikes"]));
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, CostPrice: 10m), CancellationToken.None);
 
@@ -143,11 +177,11 @@ public class GetProductsHandlerTests
     [Fact]
     public async Task Handle_WhenCategoryIsSupplied_ReturnsCaseInsensitiveCategoryMatches()
     {
-        var memory = new InMemoryDocumentSession();
+        var store = new InMemorySearchStore<Product>();
         var outdoor = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Tent", price: 50m, categories: ["Outdoor", "camping"]);
-        memory.Store(outdoor);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Trail Bike", price: 10m, categories: ["bikes"]));
-        var handler = CreateHandler(memory);
+        store.Store(outdoor);
+        store.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Trail Bike", price: 10m, categories: ["bikes"]));
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, Category: "outdoor"), CancellationToken.None);
 
@@ -158,13 +192,13 @@ public class GetProductsHandlerTests
     [Fact]
     public async Task Handle_WhenNamePriceAndCategoryAreSupplied_ReturnsIntersection()
     {
-        var memory = new InMemoryDocumentSession();
+        var store = new InMemorySearchStore<Product>();
         var match = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
-        memory.Store(match);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "City Bike", price: 10m, categories: ["bikes"]));
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-2), name: "Trail Bike", price: 20m, categories: ["bikes"]));
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-3), name: "Trail Bike", price: 10m, categories: ["gear"]));
-        var handler = CreateHandler(memory);
+        store.Store(match);
+        store.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "City Bike", price: 10m, categories: ["bikes"]));
+        store.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-2), name: "Trail Bike", price: 20m, categories: ["bikes"]));
+        store.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-3), name: "Trail Bike", price: 10m, categories: ["gear"]));
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, Name: "trail", CostPrice: 10m, Category: "bikes"), CancellationToken.None);
 
@@ -175,12 +209,12 @@ public class GetProductsHandlerTests
     [Fact]
     public async Task Handle_WhenSearchMatchesInactiveOrDeleted_OmitsThemFromFilteredTotal()
     {
-        var memory = new InMemoryDocumentSession();
+        var store = new InMemorySearchStore<Product>();
         var visible = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
-        memory.Store(visible);
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Trail Bike", price: 10m, categories: ["bikes"], isDeleted: true));
-        memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-2), name: "Trail Bike", price: 10m, categories: ["bikes"], isActive: false));
-        var handler = CreateHandler(memory);
+        store.Store(visible);
+        store.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Trail Bike", price: 10m, categories: ["bikes"], isDeleted: true));
+        store.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-2), name: "Trail Bike", price: 10m, categories: ["bikes"], isActive: false));
+        var handler = CreateHandler(store);
 
         var result = await handler.Handle(new GetProductsQuery(1, 10, Name: "trail"), CancellationToken.None);
 
@@ -188,8 +222,8 @@ public class GetProductsHandlerTests
         Assert.Equal([visible.Id], result.Items.Select(item => item.Id));
     }
 
-    private static GetProductsHandler CreateHandler(InMemoryDocumentSession memory) =>
-        new(memory.CreateUnitOfWork());
+    private static GetProductsHandler CreateHandler(InMemorySearchStore<Product> store) =>
+        new(store);
 
     private static Product CreateProduct(
         Guid id,
@@ -212,11 +246,11 @@ public class GetProductsHandlerTests
         IsActive = isActive
     };
 
-    private static void Seed(InMemoryDocumentSession memory, int count)
+    private static void Seed(InMemorySearchStore<Product> store, int count)
     {
         for (var i = 0; i < count; i++)
         {
-            memory.Store(new Product
+            store.Store(new Product
             {
                 Id = Guid.NewGuid(),
                 Name = $"Product {i}",

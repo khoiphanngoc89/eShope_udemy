@@ -12,11 +12,14 @@ Solution: `eShop.slnx`.
 
 ## What it does
 
-A client `POST`s a product to Catalog.Api. Catalog stores it in PostgreSQL through Marten and returns `201` with a new `id`. Clients can `GET /products` (page plus optional name, price, or category search), `GET /products/{id}`, and `PUT /products/{id}`. Request logs go to the console and, when LGTM is up, to Loki (query them in Grafana). Correlation IDs (`trace_id`, `span_id`) are attached when ASP.NET has a request activity. There is no identity, basket, or ordering service yet.
+A client `POST`s a product to Catalog.Api. Catalog stores it in PostgreSQL through Marten and returns `201` with a new `id`. Clients can `GET /products` (page plus optional name, price, or category search **from Elasticsearch**), `GET /products/{id}` (catalog store), and `PUT /products/{id}`. If the search index is down, `GET /products` returns **503**; create and get-by-id still work. Debezium copies store changes onto Kafka topics prefixed `eshop.catalog.sync`. Request logs go to the console and, when LGTM is up, to Loki. Correlation IDs (`trace_id`, `span_id`) are attached when ASP.NET has a request activity. There is no identity, basket, or ordering service yet.
 
 ```
 Client  →  catalogapi :8080 (published :5000)  →  catalogdb :5432 (Marten)
-                      │
+                      │                            │
+                      │                            └── Debezium → kafka → indexer → elasticsearch
+                      ├── kafka-ui :8080  (filter eshop.catalog.sync)
+                      ├── kibana :5601    (index catalog-products)
                       └── lgtm :4318 (Grafana :3000, Loki, Tempo)
 ```
 
@@ -60,6 +63,10 @@ docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wa
 # Catalog.Api (starts catalogdb; Grafana not required)
 docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogapi
 
+# Search sync (Kafka, Debezium, Elasticsearch, Kafka UI, Kibana). Catalog starts without these.
+# connect-register snapshots mt_doc_product after Catalog has created the table.
+docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait kafka connect elasticsearch kibana kafka-ui connect-register
+
 # Grafana / Loki / OTLP (optional)
 docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait lgtm
 ```
@@ -100,7 +107,14 @@ Auth: none. No public delete or activate routes.
 | `costPrice`, `sewingCost`, `fabricCostAccessoriesCost`, `packagingCost` | omitted | Exact match; reject `< 0` |
 | `category` | omitted | Case-insensitive exact match against one listed category |
 
-Combined search fields are AND. Blank `name` or `category` is ignored. Sort ties are ordered by `id` ascending. Only active, not-deleted products are returned.
+Combined search fields are AND. Blank `name` or `category` is ignored. Sort ties are ordered by `id` ascending. Only active, not-deleted products are returned. `GET /products` reads Elasticsearch, not the catalog store. Index down → `503` `{ message }` (no stack).
+
+Operator UIs (optional, not required for `dotnet test`):
+
+| UI | URL | Use |
+|----|-----|-----|
+| Kafka UI | http://localhost:8080 | Filter topics `eshop.catalog.sync` |
+| Kibana | http://localhost:5601 | Data view `catalog-products` |
 
 In-stack: `catalogapi:8080`. Published host port: `5000`.
 
@@ -174,7 +188,9 @@ Loki (`3100`), Tempo (`3200`), Prometheus (`9090`) stay inside the container. Qu
 | line_format "{{__line__}}\ntrace_id='{{.trace_id}}'\nspan_id='{{.span_id}}'"
 ```
 
-`trace_id` / `span_id` are fields on **request** rows, not in the default message text. Startup lines have none. Catalog exports **logs**, not full traces, so Tempo can be empty.
+`trace_id` / `span_id` are fields on **request** rows, not in the default message text. Startup lines have none.
+
+After Catalog handles at least one public request with LGTM up, open Grafana **Explore → Tempo → Search** and filter service name `eShop.Catalog.Api`. That request’s waterfall must appear. A Tempo service graph is not required. Catalog still starts if Tempo is down.
 
 ---
 

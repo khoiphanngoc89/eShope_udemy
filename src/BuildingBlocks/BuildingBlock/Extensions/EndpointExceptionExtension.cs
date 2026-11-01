@@ -24,6 +24,10 @@ public static class EndpointExceptionExtension
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
+            catch (ServiceUnavailableException ex)
+            {
+                return Results.Json(new { message = ex.Message }, statusCode: (int)HttpStatusCode.ServiceUnavailable);
+            }
             catch (Exception ex)
             {
                 var result = func?.Invoke(ex);

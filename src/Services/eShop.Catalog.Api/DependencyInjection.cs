@@ -1,5 +1,8 @@
 using BuildBlock.Logging.Extensions;
+using BuildingBlock.Extensions;
+using BuildingBlock.Search;
 using eShop.Catalog.Api.Data;
+using eShop.Catalog.Api.Search;
 using eShop.Catalog.Api.Services;
 using Microsoft.Extensions.Options;
 using eShop.Catalog.Api.Options;
@@ -43,6 +46,20 @@ public static class DependencyInjection
             .Validate(options => !string.IsNullOrWhiteSpace(options.CatalogDb),
                 $"{DatabaseOptions.SectionName}:CatalogDb must be configured.")
             .ValidateOnStart();
+        builder.Services.AddSingleton(CatalogSearchMetrics.Instance);
+        builder.Services.AddSearchIndex<Product>(builder.Configuration, "catalog-products");
+        builder.Services.PostConfigure<KafkaOptions>(options =>
+        {
+            if (string.IsNullOrWhiteSpace(options.GroupId))
+            {
+                options.GroupId = "eshop.catalog.search";
+            }
+
+            if (string.IsNullOrWhiteSpace(options.Topic))
+            {
+                options.Topic = "eshop.catalog.sync.public.mt_doc_product";
+            }
+        });
 
         builder.Services.AddMarten(serviceProvider =>
         {
@@ -65,6 +82,14 @@ public static class DependencyInjection
 
     internal static WebApplication UsePipline(this WebApplication app)
     {
+        if (!string.IsNullOrWhiteSpace(app.Configuration[$"{KafkaOptions.SectionName}:BootstrapServers"]))
+        {
+            app.Services.GetRequiredService<Marten.IDocumentStore>()
+                .Storage.ApplyAllConfiguredChangesToDatabaseAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();

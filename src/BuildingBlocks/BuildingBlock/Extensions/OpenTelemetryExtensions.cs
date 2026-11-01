@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 namespace BuildingBlock.Extensions;
@@ -13,7 +14,8 @@ public static class OpenTelemetryExtensions
         .WithTracing(tracing =>
          {
              tracing
-             .AddSource(applicationName) // Crucial: Must perfectly match the ActivitySource name above
+             .AddSource(applicationName)
+             .AddSource("eShop.Application")
              .AddAspNetCoreInstrumentation()       // Automatically traces host HTTP calls
              .AddHttpClientInstrumentation()       // Tracks outgoing HTTP dependencies automatically
              .AddOtlpExporter();
@@ -23,7 +25,13 @@ public static class OpenTelemetryExtensions
 
          })                   // Emits standard format spans directly to an OTel Collector/agent
             .WithLogging(logging => logging
-            .AddOtlpExporter());
+            .AddOtlpExporter())
+            .WithMetrics(metrics =>
+            {
+                metrics.AddMeter("eShop.Catalog.Search");
+                metrics.AddMeter("eShop.Search");
+                metrics.AddOtlpExporter();
+            });
         return services;
     }
 }

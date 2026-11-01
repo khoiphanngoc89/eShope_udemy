@@ -118,6 +118,42 @@ public class GetProductsEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetProducts_WhenProductIsOnlyInCatalogStore_OmitsItFromItems()
+    {
+        _factory.Documents.Store(new Product
+        {
+            Id = Guid.NewGuid(),
+            Name = "Store Only",
+            CostPrice = 1m,
+            Description = "Desc",
+            ImageFile = "file.png",
+            Categories = ["bikes"]
+        });
+
+        using var response = await _client.GetAsync("/products");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, json.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.Equal(0, json.RootElement.GetProperty("items").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task GetProducts_WhenSearchIndexIsUnavailable_Returns503AndGetByIdStillWorks()
+    {
+        var id = SeedProduct("Trail Bike", 10m, ["bikes"]);
+        _factory.Search.Unavailable = true;
+
+        using var searchResponse = await _client.GetAsync("/products");
+        using var getByIdResponse = await _client.GetAsync($"/products/{id}");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, searchResponse.StatusCode);
+        using var json = JsonDocument.Parse(await searchResponse.Content.ReadAsStringAsync());
+        Assert.True(json.RootElement.TryGetProperty("message", out _));
+        Assert.Equal(HttpStatusCode.OK, getByIdResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task GetProducts_WhenCategoryIsSupplied_ReturnsMatchingProducts()
     {
         var outdoor = SeedProduct("Tent", 50m, ["Outdoor"]);
@@ -134,7 +170,7 @@ public class GetProductsEndpointTests : IAsyncLifetime
     private Guid SeedProduct(string name, decimal price, List<string> categories)
     {
         var id = Guid.NewGuid();
-        _factory.Documents.Store(new Product
+        var product = new Product
         {
             Id = id,
             Name = name,
@@ -142,7 +178,9 @@ public class GetProductsEndpointTests : IAsyncLifetime
             Description = "Desc",
             ImageFile = "file.png",
             Categories = categories
-        });
+        };
+        _factory.Documents.Store(product);
+        _factory.Search.Store(product);
         return id;
     }
 
@@ -150,7 +188,7 @@ public class GetProductsEndpointTests : IAsyncLifetime
     {
         for (var i = 0; i < count; i++)
         {
-            _factory.Documents.Store(new Product
+            var product = new Product
             {
                 Id = Guid.NewGuid(),
                 Name = $"Product {i}",
@@ -158,7 +196,9 @@ public class GetProductsEndpointTests : IAsyncLifetime
                 Description = "Desc",
                 ImageFile = "file.png",
                 Categories = ["bikes"]
-            });
+            };
+            _factory.Documents.Store(product);
+            _factory.Search.Store(product);
         }
     }
 }

@@ -5,6 +5,8 @@
 #   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogdb
 # Catalog.Api (starts catalogdb if needed; Grafana not required):
 #   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogapi
+# Search sync (registers the product CDC connector after Catalog has created mt_doc_product):
+#   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait kafka connect elasticsearch kibana kafka-ui connect-register
 # Grafana LGTM only:
 #   docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait lgtm
 # Catalog in-stack: catalogapi:8080  Published host port: 5000 (HTTP only)
@@ -34,6 +36,25 @@ services:
   #catalog section
   catalogapi:
     image: eshop-catalog-api:local
+
+  #search-sync section
+  kafka:
+    image: apache/kafka:3.8.1
+
+  connect:
+    image: quay.io/debezium/connect:2.7.3.Final
+
+  connect-register:
+    image: quay.io/debezium/connect:2.7.3.Final
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
 
   #observability section
   lgtm:

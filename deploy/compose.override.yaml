@@ -4,6 +4,7 @@ services:
   #catalogdb: postgres
   catalogdb:
     container_name: eshop_catalog_db
+    command: ["postgres", "-c", "wal_level=logical"]
     environment:
       - POSTGRES_USER=catalog
       - POSTGRES_PASSWORD=catalog
@@ -29,8 +30,12 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__CatalogDb=Host=catalogdb;Port=5432;Database=catalog;Username=catalog;Password=catalog
+      - Elasticsearch__Uri=http://elasticsearch:9200
+      - Kafka__BootstrapServers=kafka:9092
       - Serilog__WriteTo__1__Args__endpoint=http://lgtm:4318
       - OTEL_SERVICE_NAME=eShop.Catalog.Api
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://lgtm:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
     ports:
       - "5000:8080"
     depends_on:
@@ -43,6 +48,106 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  kafka:
+    container_name: eshop_kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9092"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+
+  connect:
+    container_name: eshop_debezium_connect
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: eshop-catalog-connect
+      CONFIG_STORAGE_TOPIC: eshop.catalog.sync.connect-configs
+      OFFSET_STORAGE_TOPIC: eshop.catalog.sync.connect-offsets
+      STATUS_STORAGE_TOPIC: eshop.catalog.sync.connect-status
+    ports:
+      - "8083:8083"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      catalogdb:
+        condition: service_healthy
+
+  connect-register:
+    container_name: eshop_debezium_register
+    depends_on:
+      catalogapi:
+        condition: service_healthy
+      connect:
+        condition: service_started
+    volumes:
+      - ./debezium/catalog-product-connector.json:/connector.json:ro
+    restart: on-failure
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        until curl -sf http://connect:8083/; do sleep 2; done
+        if ! curl -sf http://connect:8083/connectors/eshop-catalog-product >/dev/null; then
+          curl -sf -X POST http://connect:8083/connectors -H "Content-Type: application/json" --data @/connector.json
+        fi
+        exec sleep infinity
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://connect:8083/connectors/eshop-catalog-product >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 5s
+
+  elasticsearch:
+    container_name: eshop_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+
+  kibana:
+    container_name: eshop_kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  kafka-ui:
+    container_name: eshop_kafka_ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8080:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
 
   #observability section
 

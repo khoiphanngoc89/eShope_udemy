@@ -1,3 +1,5 @@
+using BuildingBlock.Search;
+using eShop.Catalog.Api.Models;
 using Marten;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -11,6 +13,7 @@ namespace eShop.Catalog.Api.Tests.Support;
 public sealed class CatalogApiFactory : WebApplicationFactory<Program>
 {
     public InMemoryDocumentSession Documents { get; } = new();
+    public InMemorySearchStore<Product> Search { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -25,8 +28,10 @@ public sealed class CatalogApiFactory : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<IDocumentSession>();
+            services.RemoveAll<ISearchStore<Product>>();
             services.AddSingleton(Documents);
             services.AddSingleton<IDocumentSession>(_ => Documents.CreateSession());
+            services.AddSingleton<ISearchStore<Product>>(Search);
         });
     }
 }

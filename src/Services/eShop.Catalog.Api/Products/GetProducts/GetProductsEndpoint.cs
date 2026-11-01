@@ -45,6 +45,7 @@ public sealed class GetProductsEndpoint : ICarterModule
         .WithTags("Products")
         .WithException()
         .Produces<PaginatedResult<Product>>(StatusCodes.Status200OK)
-        .Produces(StatusCodes.Status400BadRequest);
+        .Produces(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status503ServiceUnavailable);
     }
 }

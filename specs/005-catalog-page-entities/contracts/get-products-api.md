@@ -1,17 +1,21 @@
 # Contract: Catalog paginated browse
 
-Public browse path used by service-level checks. Base URL is the `WebApplicationFactory` host. No Grafana. No live Postgres.
+Public browse path used by service-level checks. Base URL is the `WebApplicationFactory` host. No Grafana. No live Postgres. No live Elasticsearch — the host uses an in-memory search store unless the test is proving outage.
 
 Auth: none.
+
+The path already exists (`GET /products`). This pass changes the **read source** to the search index and adds a service error when that index is unavailable. It does not rename query parameters.
 
 ## 1. Get a page of products (FR-001, FR-002, FR-003, FR-005, FR-018, FR-019)
 
 ```http
 GET /products?pageNumber=1&pageSize=10
-GET /products?pageNumber=1&pageSize=10&name=bike&price=1299.50&category=outdoor
+GET /products?pageNumber=1&pageSize=10&name=bike&costPrice=1299.50&category=outdoor
 ```
 
-Query names include `pageNumber`, `pageSize`, `orderBy`, `orderDirection`, `name`, the product cost fields, and `category`. Defaults: `pageNumber=1`, `pageSize=10`, `orderBy=CreatedAt`, `orderDirection=desc`. Search and sort fields are optional.
+Query names include `pageNumber`, `pageSize`, `orderBy`, `orderDirection`, `name`, `costPrice`, `sewingCost`, `fabricCostAccessoriesCost`, `packagingCost`, and `category`. Defaults: `pageNumber=1`, `pageSize=10`. Search and sort fields are optional.
+
+**Read source**: search index (`ISearchStore<Product>` in BuildingBlock). This path MUST NOT query the catalog store.
 
 **Success**
 
@@ -25,32 +29,27 @@ Query names include `pageNumber`, `pageSize`, `orderBy`, `orderDirection`, `name
 | `totalCount` | integer |
 | `items` | array of product |
 
-Each product includes existing catalog fields (`id`, `name`, `price`, `description`, `imageFile`, `categories`) plus shared traits (`createdAt`, `lastModified`, `createdBy`, `lastModifiedBy`, `isDeleted`, `isActive`).
+Each product includes existing catalog fields (`id`, `name`, `amount`, cost fields, `description`, `imageFile`, `categories`) plus shared traits (`createdAt`, `lastModified`, `createdBy`, `lastModifiedBy`, `isDeleted`, `isActive`).
 
 **Rules**
 
 - `items.length` ≤ `pageSize`
 - `totalCount` is the number of products in the filtered browse set, not `items.length`
-- `items` MUST NOT include a product with `isDeleted: true`
-- `items` MUST NOT include a product with `isActive: false`
+- `items` MUST NOT include a product with `isDeleted: true` or `isActive: false`
 - Empty catalog or no matches: `items` is `[]` and `totalCount` is `0`
 - Page past the last match: `items` is `[]` and `totalCount` is unchanged
-- `name`: case-insensitive contains on product name; omitted or blank means no name filter
-- `price`: exact decimal match; omitted means no price filter
-- `category`: case-insensitive exact match against one listed category; omitted or blank means no category filter
+- `name`: case-insensitive contains; omitted or blank means no name filter
+- Cost fields: exact decimal match; omitted means no filter on that field
+- `category`: case-insensitive exact match against one listed category
 - Combined search fields are AND
-- Default order: `createdAt` newest first, then `id` ascending
-- `orderBy`: one of `CreatedAt`, `LastModified`, `Name`, `CostPrice`, `SewingCost`, `FabricCostAccessoriesCost`, `PackagingCost`, or `Amount`
-- `orderDirection`: `asc` or `desc`
-- Two identical requests against an unchanged store return the same `items` in the same order
+- Two identical requests against an unchanged index return the same `items` in the same order
 
 **Failure of the feature (tests MUST fail)**
 
-- Non-200 for a valid page request
-- Missing page fields
-- A deleted product appears in `items`
+- Non-200 for a valid page request when the index is up
+- A catalog-store-only product (not in the search store) appears in `items`
+- A deleted or inactive product appears in `items`
 - `totalCount` does not match the filtered browse set
-- A product that fails the name, price, or category filter appears in `items`
 - Order differs across two identical requests
 
 ## 2. Invalid page or search request (FR-004, FR-020)
@@ -59,7 +58,7 @@ Each product includes existing catalog fields (`id`, `name`, `price`, `descripti
 GET /products?pageNumber=0
 GET /products?pageSize=0
 GET /products?pageSize=101
-GET /products?price=-1
+GET /products?costPrice=-1
 ```
 
 **Success of the check**
@@ -67,5 +66,30 @@ GET /products?price=-1
 - Status: `400 Bad Request`
 - Body is a clear validation failure (not an empty 200 page)
 
+## 3. Search index unavailable (FR-023, FR-024)
+
+```http
+GET /products?pageNumber=1&pageSize=10
+```
+
+When the search store cannot serve the query.
+
+**Success of the check**
+
+- Status: `503 Service Unavailable`
+- Body is `{ message }` (no stack)
+- Items are not returned from the catalog store
+- The failed-request log still includes request name, duration, and stack (FR-021)
+- `GET /products/{id}` for a stored active product still returns 200
+
+**Failure of the feature**
+
+- HTTP 200 with `items: []` while the index is down
+- HTTP 200 with products loaded from the catalog store
+- Create or get-by-id also failing solely because the index is down
+
+## Out of scope
+
 - `DELETE /products/{id}` or activate/deactivate routes
 - Changing `POST /products` or `PUT /products/{id}` paths
+- Waiting in create/update until the product is searchable

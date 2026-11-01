@@ -1,6 +1,6 @@
+using System.Diagnostics;
 using BuildingBlock.Behaviors;
 using BuildingBlock.Abstractions.Cqrs;
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace BuildingBlock.Tests;
@@ -22,6 +22,28 @@ public class LoggingAndTelemetryBehaviorTests
         Assert.Contains("boom from handler", entry.Message, StringComparison.Ordinal);
         Assert.Contains("at ", entry.Message, StringComparison.Ordinal);
         Assert.Contains(nameof(BoomHandler), entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Handle_WhenListenerIsAttached_RecordsMediatRActivity()
+    {
+        var recorded = new List<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "eShop.Application",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStarted = recorded.Add
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var logger = new CapturingLogger<LoggingAndTelemetryBehavior<BoomCommand, string>>();
+        var behavior = new LoggingAndTelemetryBehavior<BoomCommand, string>(logger);
+
+        await behavior.Handle(new BoomCommand(), _ => Task.FromResult("ok"), CancellationToken.None);
+
+        var activity = Assert.Single(recorded);
+        Assert.Equal("MediatR BoomCommand", activity.DisplayName);
+        Assert.Equal("BoomCommand", activity.GetTagItem("mediatr.request_type"));
     }
 
     private sealed record BoomCommand : ICommand<string>;
