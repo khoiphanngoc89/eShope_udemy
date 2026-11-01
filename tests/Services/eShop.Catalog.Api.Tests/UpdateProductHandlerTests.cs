@@ -16,7 +16,7 @@ public class UpdateProductHandlerTests
         {
             Id = id,
             Name = "Old",
-            Price = 1m,
+            CostPrice = 1m,
             Description = "Old desc",
             ImageFile = "old.png",
             Categories = ["old"],
@@ -26,7 +26,7 @@ public class UpdateProductHandlerTests
             IsDeleted = false
         });
         var handler = new UpdateProductHandler(memory.CreateUnitOfWork());
-        var command = new UpdateProductCommand(id, "New", 2m, "New desc", "new.png", ["new"]);
+        var command = new UpdateProductCommand(id, "New", 3, 2m, 1m, 0.5m, 0.25m, "New desc", "new.png", ["new"]);
 
         var result = await handler.Handle(command, CancellationToken.None);
         var stored = await memory.LoadAsync(id);
@@ -38,7 +38,11 @@ public class UpdateProductHandlerTests
         Assert.True(stored.LastModified > createdAt);
         Assert.Equal(TimeSpan.Zero, stored.LastModified.Offset);
         Assert.Equal(command.Name, stored.Name);
-        Assert.Equal(command.Price, stored.Price);
+        Assert.Equal(command.CostPrice, stored.CostPrice);
+        Assert.Equal(command.Amount, stored.Amount);
+        Assert.Equal(command.SewingCost, stored.SewingCost);
+        Assert.Equal(command.FabricCostAccessoriesCost, stored.FabricCostAccessoriesCost);
+        Assert.Equal(command.PackagingCost, stored.PackagingCost);
         Assert.Equal(command.Description, stored.Description);
         Assert.Equal(command.ImageFile, stored.ImageFile);
         Assert.Equal(command.Categories, stored.Categories);

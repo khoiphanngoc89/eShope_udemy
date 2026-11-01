@@ -1,17 +1,32 @@
-using BuildingBlock.Cqrs;
 using BuildingBlock.Data;
-using BuildingBlock.Models;
-using eShop.Catalog.Api.Data;
 using FluentValidation;
+using BuildingBlock.Models;
 
 namespace eShop.Catalog.Api.Products.GetProducts;
+
+public enum ProductOrderBy
+{
+    CreatedAt,
+    LastModified,
+    Name,
+    CostPrice,
+    SewingCost,
+    FabricCostAccessoriesCost,
+    PackagingCost,
+    Amount
+}
 
 public sealed record GetProductsQuery(
     int PageNumber = 1,
     int PageSize = 10,
     string? Name = null,
-    decimal? Price = null,
-    string? Category = null) : BaseQuery<PaginatedResult<Product>>;
+    decimal? CostPrice = null,
+    decimal? SewingCost = null,
+    decimal? FabricCostAccessoriesCost = null,
+    decimal? PackagingCost = null,
+    string? Category = null,
+    ProductOrderBy OrderBy = ProductOrderBy.CreatedAt,
+    OrderDirection OrderDirection = OrderDirection.Desc) : IQuery<PaginatedResult<Product>>;
 
 public sealed class GetProductsValidator : AbstractValidator<GetProductsQuery>
 {
@@ -19,7 +34,12 @@ public sealed class GetProductsValidator : AbstractValidator<GetProductsQuery>
     {
         RuleFor(x => x.PageNumber).GreaterThanOrEqualTo(1);
         RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
-        RuleFor(x => x.Price).GreaterThanOrEqualTo(0).When(x => x.Price.HasValue);
+        RuleFor(x => x.CostPrice).GreaterThanOrEqualTo(0).When(x => x.CostPrice.HasValue);
+        RuleFor(x => x.SewingCost).GreaterThanOrEqualTo(0).When(x => x.SewingCost.HasValue);
+        RuleFor(x => x.FabricCostAccessoriesCost).GreaterThanOrEqualTo(0).When(x => x.FabricCostAccessoriesCost.HasValue);
+        RuleFor(x => x.PackagingCost).GreaterThanOrEqualTo(0).When(x => x.PackagingCost.HasValue);
+        RuleFor(x => x.OrderBy).IsInEnum();
+        RuleFor(x => x.OrderDirection).IsInEnum();
     }
 }
 
@@ -34,9 +54,24 @@ public sealed class GetProductsHandler(ICatalogUnitOfWork unitOfWork) : IQueryHa
             products = products.Where(product => product.Name.ToLower().Contains(name));
         }
 
-        if (query.Price is { } price)
+        if (query.CostPrice is { } price)
         {
-            products = products.Where(product => product.Price == price);
+            products = products.Where(product => product.CostPrice == price);
+        }
+
+        if (query.SewingCost is { } sewingCost)
+        {
+            products = products.Where(product => product.SewingCost == sewingCost);
+        }
+
+        if (query.FabricCostAccessoriesCost is { } fabricCost)
+        {
+            products = products.Where(product => product.FabricCostAccessoriesCost == fabricCost);
+        }
+
+        if (query.PackagingCost is { } packagingCost)
+        {
+            products = products.Where(product => product.PackagingCost == packagingCost);
         }
 
         if (!string.IsNullOrWhiteSpace(query.Category))

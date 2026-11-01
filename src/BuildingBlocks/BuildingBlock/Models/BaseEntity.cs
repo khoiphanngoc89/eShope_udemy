@@ -1,3 +1,5 @@
+using BuildingBlock.Abstractions;
+
 namespace BuildingBlock.Models;
 
 public abstract class BaseEntity : IAuditable, IDeletable, IActivable

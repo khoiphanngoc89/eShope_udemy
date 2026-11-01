@@ -11,7 +11,7 @@ GET /products?pageNumber=1&pageSize=10
 GET /products?pageNumber=1&pageSize=10&name=bike&price=1299.50&category=outdoor
 ```
 
-Query names are `pageNumber`, `pageSize`, `name`, `price`, and `category`. Page fields are optional. Defaults: `pageNumber=1`, `pageSize=10`. Search fields are optional.
+Query names include `pageNumber`, `pageSize`, `orderBy`, `orderDirection`, `name`, the product cost fields, and `category`. Defaults: `pageNumber=1`, `pageSize=10`, `orderBy=CreatedAt`, `orderDirection=desc`. Search and sort fields are optional.
 
 **Success**
 
@@ -39,7 +39,9 @@ Each product includes existing catalog fields (`id`, `name`, `price`, `descripti
 - `price`: exact decimal match; omitted means no price filter
 - `category`: case-insensitive exact match against one listed category; omitted or blank means no category filter
 - Combined search fields are AND
-- Order: `lastModified` newest first, then `id` ascending
+- Default order: `createdAt` newest first, then `id` ascending
+- `orderBy`: one of `CreatedAt`, `LastModified`, `Name`, `CostPrice`, `SewingCost`, `FabricCostAccessoriesCost`, `PackagingCost`, or `Amount`
+- `orderDirection`: `asc` or `desc`
 - Two identical requests against an unchanged store return the same `items` in the same order
 
 **Failure of the feature (tests MUST fail)**
@@ -65,8 +67,5 @@ GET /products?price=-1
 - Status: `400 Bad Request`
 - Body is a clear validation failure (not an empty 200 page)
 
-## Out of scope
-
-- Client-supplied sort
 - `DELETE /products/{id}` or activate/deactivate routes
 - Changing `POST /products` or `PUT /products/{id}` paths

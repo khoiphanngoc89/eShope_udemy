@@ -13,7 +13,11 @@ public class CreateProductHandlerTests
         var handler = CreateHandler(memory);
         var command = new CreateProductCommand(
             "Trail Bike",
+            5,
             1299.50m,
+            0m,
+            0m,
+            0m,
             "A sturdy trail bike",
             "trail-bike.png",
             ["bikes", "outdoor"]);
@@ -25,7 +29,8 @@ public class CreateProductHandlerTests
         Assert.NotNull(stored);
         Assert.Equal(result.Id, stored.Id);
         Assert.Equal(command.Name, stored.Name);
-        Assert.Equal(command.Price, stored.Price);
+        Assert.Equal(command.CostPrice, stored.CostPrice);
+        Assert.Equal(command.Amount, stored.Amount);
         Assert.Equal(command.Description, stored.Description);
         Assert.Equal(command.ImageFile, stored.ImageFile);
         Assert.Equal(command.Categories, stored.Categories);
@@ -36,7 +41,7 @@ public class CreateProductHandlerTests
     {
         var memory = new InMemoryDocumentSession();
         var handler = CreateHandler(memory);
-        var command = new CreateProductCommand("Name", 1m, "Desc", "file.png", ["a"]);
+        var command = new CreateProductCommand("Name", 1, 1m, 0m, 0m, 0m, "Desc", "file.png", ["a"]);
 
         var first = await handler.Handle(command, CancellationToken.None);
         var second = await handler.Handle(command, CancellationToken.None);
@@ -51,7 +56,7 @@ public class CreateProductHandlerTests
     {
         var memory = new InMemoryDocumentSession();
         var handler = CreateHandler(memory);
-        var command = new CreateProductCommand("Name", 1m, "Desc", "file.png", ["a"]);
+        var command = new CreateProductCommand("Name", 1, 1m, 0m, 0m, 0m, "Desc", "file.png", ["a"]);
 
         var result = await handler.Handle(command, CancellationToken.None);
         var stored = await memory.LoadAsync(result.Id);

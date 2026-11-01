@@ -1,11 +1,11 @@
+using BuildingBlock.Abstractions;
+using BuildingBlock.Abstractions.Cqrs;
 using BuildingBlock.Models;
 
-namespace BuildingBlock.Cqrs;
+namespace BuildingBlock.Data;
 
-public abstract record BaseQuery<TResponse> : IQuery<TResponse>
-    where TResponse : notnull;
 
-public static class BaseQuery
+public static class Query
 {
     public static bool Matches<T>(T? entity)
         where T : class, IActivable, IDeletable
@@ -16,9 +16,9 @@ public static class BaseQuery
         => query.Where(entity => entity.IsActive && !entity.IsDeleted);
 }
 
-public static class BaseQueryExtensions
+public static class QueryExtensions
 {
-    public static IQueryable<T> ApplyBaseQuery<T>(this IQueryable<T> query)
+    public static IQueryable<T> ApplyQuery<T>(this IQueryable<T> query)
         where T : IActivable, IDeletable
-        => BaseQuery.Filter(query);
+        => Query.Filter(query);
 }

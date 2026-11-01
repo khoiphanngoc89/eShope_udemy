@@ -5,7 +5,17 @@ using Mapster;
 
 namespace eShop.Catalog.Api.Products.UpdateProduct;
 
-public sealed record UpdateProductCommand(Guid Id, string Name, decimal Price, string Description, string ImageFile, List<string> Categories) : ICommand<UpdateProductResult>;
+public sealed record UpdateProductCommand(
+    Guid Id,
+    string Name,
+    int Amount,
+    decimal CostPrice,
+    decimal SewingCost,
+    decimal FabricCostAccessoriesCost,
+    decimal PackagingCost,
+    string Description,
+    string ImageFile,
+    List<string> Categories) : ICommand<UpdateProductResult>;
 public sealed record UpdateProductResult(bool IsSuccess);
 public sealed class UpdateProductValidator : AbstractValidator<UpdateProductCommand>
 {
@@ -13,7 +23,11 @@ public sealed class UpdateProductValidator : AbstractValidator<UpdateProductComm
     {
         RuleFor(x => x.Id).NotEmpty().WithMessage("Product ID is required.");
         RuleFor(x => x.Name).NotEmpty().WithMessage("Product name is required.");
-        RuleFor(x => x.Price).GreaterThan(0).WithMessage("Product price must be greater than zero.");
+        RuleFor(x => x.Amount).GreaterThanOrEqualTo(0).WithMessage("Product amount must be non-negative.");
+        RuleFor(x => x.CostPrice).GreaterThan(0).WithMessage("Product cost price must be greater than zero.");
+        RuleFor(x => x.SewingCost).GreaterThanOrEqualTo(0).WithMessage("Sewing cost must be non-negative.");
+        RuleFor(x => x.FabricCostAccessoriesCost).GreaterThanOrEqualTo(0).WithMessage("Fabric and accessories cost must be non-negative.");
+        RuleFor(x => x.PackagingCost).GreaterThanOrEqualTo(0).WithMessage("Packaging cost must be non-negative.");
         RuleFor(x => x.Description).NotEmpty().WithMessage("Product description is required.");
         RuleFor(x => x.ImageFile).NotEmpty().WithMessage("Product image file is required.");
         RuleFor(x => x.Categories).NotEmpty().WithMessage("At least one category is required.");

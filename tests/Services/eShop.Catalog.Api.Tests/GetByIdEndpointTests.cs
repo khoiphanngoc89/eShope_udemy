@@ -35,7 +35,7 @@ public class GetByIdEndpointTests : IAsyncLifetime
         var body = json.RootElement.GetProperty("product");
         Assert.Equal(product.Id, body.GetProperty("id").GetGuid());
         Assert.Equal(product.Name, body.GetProperty("name").GetString());
-        Assert.Equal(product.Price, body.GetProperty("price").GetDecimal());
+        Assert.Equal(product.CostPrice, body.GetProperty("costPrice").GetDecimal());
         Assert.Equal(product.Description, body.GetProperty("description").GetString());
         Assert.Equal(product.ImageFile, body.GetProperty("imageFile").GetString());
         Assert.Equal(product.Categories, body.GetProperty("categories").EnumerateArray().Select(item => item.GetString()).ToArray());
@@ -88,7 +88,7 @@ public class GetByIdEndpointTests : IAsyncLifetime
         {
             Id = Guid.NewGuid(),
             Name = "Trail Bike",
-            Price = 1299.50m,
+            CostPrice = 1299.50m,
             Description = "A sturdy trail bike",
             ImageFile = "trail-bike.png",
             Categories = ["bikes", "outdoor"],

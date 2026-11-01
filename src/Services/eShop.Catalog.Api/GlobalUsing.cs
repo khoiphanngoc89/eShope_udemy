@@ -1,7 +1,11 @@
-global using eShop.Catalog.Api.Models;
-global using BuildingBlock.Cqrs;
 global using MediatR;
-global using eShop.Catalog.Api;
 global using Marten;
 global using Carter;
 global using Mapster;
+global using BuildingBlock.Extensions;
+global using BuildingBlock.Data;
+global using BuildingBlock.Models;
+global using eShop.Catalog.Api.Abstractions;
+global using eShop.Catalog.Api.Models;
+global using BuildingBlock.Abstractions.Cqrs;
+global using eShop.Catalog.Api;

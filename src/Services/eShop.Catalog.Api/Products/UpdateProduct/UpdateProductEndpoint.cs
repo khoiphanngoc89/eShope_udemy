@@ -3,7 +3,17 @@ using eShop.Catalog.Api.Exceptions;
 
 namespace eShop.Catalog.Api.Products.UpdateProduct;
 
-public sealed record UpdateProductRequest(Guid Id, string Name, decimal Price, string Description, string ImageFile, List<string> Categories);
+public sealed record UpdateProductRequest(
+    Guid Id,
+    string Name,
+    int Amount,
+    decimal CostPrice,
+    decimal SewingCost,
+    decimal FabricCostAccessoriesCost,
+    decimal PackagingCost,
+    string Description,
+    string ImageFile,
+    List<string> Categories);
 public sealed record UpdateProductResponse(bool IsSuccess);
 public sealed class UpdateProductEndpoint : ICarterModule
 {
@@ -23,6 +33,7 @@ public sealed class UpdateProductEndpoint : ICarterModule
         .WithName("UpdateProduct")
         .WithSummary("Update a product")
         .WithDescription("Updates a product and returns the updated product result.")
+        .WithTags("Products")
         .WithException()
         .Produces<UpdateProductResponse>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status400BadRequest)

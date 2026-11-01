@@ -1,3 +1,4 @@
+using BuildingBlock.Abstractions.Data;
 using BuildingBlock.Models;
 using Marten;
 

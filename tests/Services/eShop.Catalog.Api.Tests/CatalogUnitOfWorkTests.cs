@@ -1,4 +1,6 @@
+using BuildingBlock.Abstractions.Data;
 using BuildingBlock.Data;
+using eShop.Catalog.Api.Abstractions;
 using eShop.Catalog.Api.Data;
 using eShop.Catalog.Api.Models;
 using eShop.Catalog.Api.Tests.Support;
@@ -28,7 +30,7 @@ public class CatalogUnitOfWorkTests
         {
             Id = Guid.NewGuid(),
             Name = "Trail Bike",
-            Price = 10m,
+            CostPrice = 10m,
             Description = "Desc",
             ImageFile = "file.png",
             Categories = ["bikes"]

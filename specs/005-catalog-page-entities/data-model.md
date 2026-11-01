@@ -83,7 +83,7 @@ Shared page shape in `BuildingBlock` (FR-012). Catalog browse uses `T = Product`
 
 - Include: products with `IsActive = true` and `IsDeleted = false`.
 - Exclude: products with `IsDeleted = true`.
-- Order: `LastModified` descending, then `Id` ascending (FR-018, SC-009).
+- Default order: `CreatedAt` descending, then `Id` ascending. `OrderBy` and `OrderDirection` may override the sort using supported product fields.
 - Slice: `Skip((PageNumber - 1) * PageSize)`, `Take(PageSize)`.
 
 ## Product search (GET /products)

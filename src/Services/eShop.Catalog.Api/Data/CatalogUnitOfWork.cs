@@ -1,6 +1,4 @@
-using BuildingBlock.Data;
-using BuildingBlock.Models;
-using Marten;
+using BuildingBlock.Abstractions.Data;
 
 namespace eShop.Catalog.Api.Data;
 

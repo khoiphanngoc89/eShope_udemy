@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using BuildingBlock.Models;
 
-namespace BuildingBlock.Data;
+namespace BuildingBlock.Abstractions.Data;
 
 public interface IRepositoryQueryBase<T> where T : BaseEntity
 {

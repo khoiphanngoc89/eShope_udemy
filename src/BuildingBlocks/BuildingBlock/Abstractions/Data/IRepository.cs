@@ -1,6 +1,6 @@
 using BuildingBlock.Models;
 
-namespace BuildingBlock.Data;
+namespace BuildingBlock.Abstractions.Data;
 
 public interface IRepository<T> : IRepositoryQueryBase<T> where T : BaseEntity
 {

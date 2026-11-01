@@ -1,4 +1,5 @@
 using BuildingBlock.Data;
+using eShop.Catalog.Api.Abstractions;
 using eShop.Catalog.Api.Data;
 using eShop.Catalog.Api.Models;
 using Marten;

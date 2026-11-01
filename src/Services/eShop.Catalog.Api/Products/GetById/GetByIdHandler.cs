@@ -1,11 +1,10 @@
-using BuildingBlock.Cqrs;
 using eShop.Catalog.Api.Data;
 using eShop.Catalog.Api.Exceptions;
 using FluentValidation;
 
 namespace eShop.Catalog.Api.Products.GetById;
 
-public sealed record GetByIdQuery(Guid Id) : BaseQuery<GetByIdResult>;
+public sealed record GetByIdQuery(Guid Id) : IQuery<GetByIdResult>;
 public sealed record GetByIdResult(Product Product);
 public sealed class GetByIdValidator : AbstractValidator<GetByIdQuery>
 {

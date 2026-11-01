@@ -36,7 +36,7 @@ public class GenericRepositoryTests
     }
 
     [Fact]
-    public void FindAll_AppliesBaseQueryIsActiveAndNotDeleted()
+    public void FindAll_AppliesQueryIsActiveAndNotDeleted()
     {
         var memory = new InMemoryDocumentSession();
         var visible = CreateProduct(Guid.NewGuid(), isDeleted: false, isActive: true);
@@ -51,7 +51,7 @@ public class GenericRepositoryTests
     }
 
     [Fact]
-    public void FindByCondition_AppliesBaseQueryThenPredicate()
+    public void FindByCondition_AppliesQueryThenPredicate()
     {
         var memory = new InMemoryDocumentSession();
         var visibleMatch = CreateProduct(Guid.NewGuid(), isDeleted: false, isActive: true, name: "Trail Bike");
@@ -136,7 +136,7 @@ public class GenericRepositoryTests
     {
         Id = id,
         Name = name,
-        Price = 10m,
+        CostPrice = 10m,
         Description = "Desc",
         ImageFile = "file.png",
         Categories = ["bikes"],

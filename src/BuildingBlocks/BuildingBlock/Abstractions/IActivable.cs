@@ -1,4 +1,4 @@
-namespace BuildingBlock.Models;
+namespace BuildingBlock.Abstractions;
 
 public interface IActivable
 {

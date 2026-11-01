@@ -48,7 +48,7 @@ public class GetByIdHandlerTests
     {
         Id = id,
         Name = "Trail Bike",
-        Price = 10m,
+        CostPrice = 10m,
         Description = "Desc",
         ImageFile = "file.png",
         Categories = ["bikes"],

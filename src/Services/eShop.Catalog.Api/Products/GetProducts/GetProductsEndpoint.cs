@@ -3,28 +3,45 @@ using BuildingBlock.Models;
 
 namespace eShop.Catalog.Api.Products.GetProducts;
 
+public sealed record GetProductsRequest(
+    int PageNumber = 1,
+    int PageSize = 10,
+    string? Name = null,
+    decimal? CostPrice = null,
+    decimal? SewingCost = null,
+    decimal? FabricCostAccessoriesCost = null,
+    decimal? PackagingCost = null,
+    string? Category = null,
+    ProductOrderBy OrderBy = ProductOrderBy.CreatedAt,
+    OrderDirection OrderDirection = OrderDirection.Desc);
+
+public sealed record GetProductsResponse(PaginatedResult<Product> Products);
 public sealed class GetProductsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapGet("/products", async (
             ISender sender,
-            int pageNumber = 1,
-            int pageSize = 10,
-            string? name = null,
-            decimal? price = null,
-            string? category = null,
+            [AsParameters] GetProductsRequest request,
             CancellationToken cancellationToken = default) =>
         {
-            var request = new PaginationRequest { PageNumber = pageNumber, PageSize = pageSize };
-            var result = await sender.Send(
-                new GetProductsQuery(request.PageNumber, request.PageSize, name, price, category),
-                cancellationToken);
+            var query = new GetProductsQuery(
+                request.PageNumber,
+                request.PageSize,
+                request.Name,
+                request.CostPrice,
+                request.SewingCost,
+                request.FabricCostAccessoriesCost,
+                request.PackagingCost,
+                request.Category,
+                request.OrderBy,
+                request.OrderDirection);
+            var result = await sender.Send(query, cancellationToken);
             return Results.Ok(result);
         })
         .WithName("GetProducts")
         .WithSummary("Get a page of products")
-        .WithDescription("Returns one page of catalog products. Optional name, price, and category search.")
+        .WithDescription("Returns a page of catalog products with optional filters and sorting. Defaults to CreatedAt descending.")
         .WithTags("Products")
         .WithException()
         .Produces<PaginatedResult<Product>>(StatusCodes.Status200OK)

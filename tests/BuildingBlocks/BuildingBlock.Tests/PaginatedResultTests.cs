@@ -4,13 +4,20 @@ namespace BuildingBlock.Tests;
 
 public class PaginatedResultTests
 {
-    [Fact]
-    public void PaginationRequest_WhenConstructedWithoutValues_UsesPageOneAndSizeTen()
+    private enum SampleOrderBy
     {
-        var request = new PaginationRequest();
+        CreatedAt
+    }
+
+    [Fact]
+    public void PaginationRequest_WhenConstructedWithoutValues_UsesPageAndSortingDefaults()
+    {
+        var request = new PaginationRequest<SampleOrderBy>();
 
         Assert.Equal(1, request.PageNumber);
         Assert.Equal(10, request.PageSize);
+        Assert.Equal(SampleOrderBy.CreatedAt, request.OrderBy);
+        Assert.Equal(OrderDirection.Desc, request.OrderDirection);
     }
 
     [Fact]

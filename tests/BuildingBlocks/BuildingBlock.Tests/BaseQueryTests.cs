@@ -1,11 +1,12 @@
-using BuildingBlock.Cqrs;
+using BuildingBlock.Abstractions.Cqrs;
+using BuildingBlock.Data;
 using BuildingBlock.Models;
 
 namespace BuildingBlock.Tests;
 
-public class BaseQueryTests
+public class QueryTests
 {
-    private sealed record SampleQuery() : BaseQuery<string>;
+    private sealed record SampleQuery() : IQuery<string>;
 
     private sealed class SampleEntity : BaseEntity;
 
@@ -22,15 +23,15 @@ public class BaseQueryTests
     {
         var entity = new SampleEntity { IsActive = true, IsDeleted = false };
 
-        Assert.True(BaseQuery.Matches(entity));
+        Assert.True(Query.Matches(entity));
     }
 
     [Fact]
     public void Matches_WhenInactiveOrDeletedOrNull_ReturnsFalse()
     {
-        Assert.False(BaseQuery.Matches<SampleEntity>(null));
-        Assert.False(BaseQuery.Matches(new SampleEntity { IsActive = false, IsDeleted = false }));
-        Assert.False(BaseQuery.Matches(new SampleEntity { IsActive = true, IsDeleted = true }));
+        Assert.False(Query.Matches<SampleEntity>(null));
+        Assert.False(Query.Matches(new SampleEntity { IsActive = false, IsDeleted = false }));
+        Assert.False(Query.Matches(new SampleEntity { IsActive = true, IsDeleted = true }));
     }
 
     [Fact]
@@ -40,7 +41,7 @@ public class BaseQueryTests
         var inactive = new SampleEntity { Id = Guid.NewGuid(), IsActive = false, IsDeleted = false };
         var deleted = new SampleEntity { Id = Guid.NewGuid(), IsActive = true, IsDeleted = true };
 
-        var result = new[] { visible, inactive, deleted }.AsQueryable().ApplyBaseQuery().ToList();
+        var result = new[] { visible, inactive, deleted }.AsQueryable().ApplyQuery().ToList();
 
         Assert.Equal([visible.Id], result.Select(item => item.Id));
     }

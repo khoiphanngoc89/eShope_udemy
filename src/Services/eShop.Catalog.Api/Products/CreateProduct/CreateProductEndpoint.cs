@@ -1,6 +1,15 @@
 namespace eShop.Catalog.Api.Products.CreateProduct;
 
-public sealed record CreateProductRequest(string Name, decimal Price, string Description, string ImageFile, List<string> Categories) : ICommand<CreateProductResult>;
+public sealed record CreateProductRequest(
+    string Name,
+    int Amount,
+    decimal CostPrice,
+    decimal SewingCost,
+    decimal FabricCostAccessoriesCost,
+    decimal PackagingCost,
+    string Description,
+    string ImageFile,
+    List<string> Categories) : ICommand<CreateProductResult>;
 public sealed record CreateProductResponse(Guid Id);
 public sealed class CreateProductEndpoint : ICarterModule
 {

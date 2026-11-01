@@ -84,6 +84,33 @@ public class GetProductsHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenOrderIsNotSpecified_OrdersByCreatedAtDescending()
+    {
+        var memory = new InMemoryDocumentSession();
+        var olderCreated = CreateProduct(
+            Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            DateTimeOffset.UtcNow,
+            name: "Older created");
+        olderCreated.CreatedAt = DateTimeOffset.UtcNow.AddDays(-1);
+        olderCreated.LastModified = DateTimeOffset.UtcNow;
+
+        var newerCreated = CreateProduct(
+            Guid.Parse("00000000-0000-0000-0000-000000000002"),
+            DateTimeOffset.UtcNow.AddDays(-1),
+            name: "Newer created");
+        newerCreated.CreatedAt = DateTimeOffset.UtcNow;
+        newerCreated.LastModified = DateTimeOffset.UtcNow.AddDays(-1);
+
+        memory.Store(olderCreated);
+        memory.Store(newerCreated);
+        var handler = CreateHandler(memory);
+
+        var result = await handler.Handle(new GetProductsQuery(), CancellationToken.None);
+
+        Assert.Equal(new[] { newerCreated.Id, olderCreated.Id }, result.Items.Select(item => item.Id));
+    }
+
+    [Fact]
     public async Task Handle_WhenNameIsSupplied_ReturnsCaseInsensitiveContainsMatches()
     {
         var memory = new InMemoryDocumentSession();
@@ -99,7 +126,7 @@ public class GetProductsHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenPriceIsSupplied_ReturnsExactPriceMatches()
+    public async Task Handle_WhenCostPriceIsSupplied_ReturnsExactMatches()
     {
         var memory = new InMemoryDocumentSession();
         var match = CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow, name: "Trail Bike", price: 10m, categories: ["bikes"]);
@@ -107,7 +134,7 @@ public class GetProductsHandlerTests
         memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-1), name: "Road Bike", price: 20m, categories: ["bikes"]));
         var handler = CreateHandler(memory);
 
-        var result = await handler.Handle(new GetProductsQuery(1, 10, Price: 10m), CancellationToken.None);
+        var result = await handler.Handle(new GetProductsQuery(1, 10, CostPrice: 10m), CancellationToken.None);
 
         Assert.Equal(1, result.TotalCount);
         Assert.Equal([match.Id], result.Items.Select(item => item.Id));
@@ -139,7 +166,7 @@ public class GetProductsHandlerTests
         memory.Store(CreateProduct(Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(-3), name: "Trail Bike", price: 10m, categories: ["gear"]));
         var handler = CreateHandler(memory);
 
-        var result = await handler.Handle(new GetProductsQuery(1, 10, Name: "trail", Price: 10m, Category: "bikes"), CancellationToken.None);
+        var result = await handler.Handle(new GetProductsQuery(1, 10, Name: "trail", CostPrice: 10m, Category: "bikes"), CancellationToken.None);
 
         Assert.Equal(1, result.TotalCount);
         Assert.Equal([match.Id], result.Items.Select(item => item.Id));
@@ -175,7 +202,7 @@ public class GetProductsHandlerTests
     {
         Id = id,
         Name = name ?? id.ToString("N")[..8],
-        Price = price,
+        CostPrice = price,
         Description = "Desc",
         ImageFile = "file.png",
         Categories = categories ?? ["bikes"],
@@ -193,7 +220,7 @@ public class GetProductsHandlerTests
             {
                 Id = Guid.NewGuid(),
                 Name = $"Product {i}",
-                Price = i + 1,
+                CostPrice = i + 1,
                 Description = "Desc",
                 ImageFile = "file.png",
                 Categories = ["bikes"]

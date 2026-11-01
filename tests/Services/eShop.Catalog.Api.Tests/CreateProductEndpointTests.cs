@@ -29,7 +29,11 @@ public class CreateProductEndpointTests : IAsyncLifetime
         var body = new
         {
             name = "Trail Bike",
-            price = 1299.50m,
+            amount = 5,
+            costPrice = 1299.50m,
+            sewingCost = 0m,
+            fabricCostAccessoriesCost = 0m,
+            packagingCost = 0m,
             description = "A sturdy trail bike",
             imageFile = "trail-bike.png",
             categories = new[] { "bikes", "outdoor" }
@@ -47,7 +51,8 @@ public class CreateProductEndpointTests : IAsyncLifetime
         Assert.NotNull(stored);
         Assert.Equal(id, stored.Id);
         Assert.Equal(body.name, stored.Name);
-        Assert.Equal(body.price, stored.Price);
+        Assert.Equal(body.costPrice, stored.CostPrice);
+        Assert.Equal(body.amount, stored.Amount);
         Assert.Equal(body.description, stored.Description);
         Assert.Equal(body.imageFile, stored.ImageFile);
         Assert.Equal(body.categories, stored.Categories);
@@ -59,7 +64,11 @@ public class CreateProductEndpointTests : IAsyncLifetime
         var body = new
         {
             name = "Helmet",
-            price = 40m,
+            amount = 1,
+            costPrice = 40m,
+            sewingCost = 0m,
+            fabricCostAccessoriesCost = 0m,
+            packagingCost = 0m,
             description = "Safe",
             imageFile = "helmet.png",
             categories = new[] { "safety" }

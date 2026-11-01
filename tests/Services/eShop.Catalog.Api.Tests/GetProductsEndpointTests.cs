@@ -81,7 +81,7 @@ public class GetProductsEndpointTests : IAsyncLifetime
     [InlineData("/products?pageNumber=0")]
     [InlineData("/products?pageSize=0")]
     [InlineData("/products?pageSize=101")]
-    [InlineData("/products?price=-1")]
+    [InlineData("/products?costPrice=-1")]
     public async Task GetProducts_WhenPageIsInvalid_ReturnsBadRequest(string url)
     {
         using var response = await _client.GetAsync(url);
@@ -104,12 +104,12 @@ public class GetProductsEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetProducts_WhenPriceIsSupplied_ReturnsMatchingProducts()
+    public async Task GetProducts_WhenCostPriceIsSupplied_ReturnsMatchingProducts()
     {
         var match = SeedProduct("Trail Bike", 10m, ["bikes"]);
         SeedProduct("Road Bike", 20m, ["bikes"]);
 
-        using var response = await _client.GetAsync("/products?price=10");
+        using var response = await _client.GetAsync("/products?costPrice=10");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -138,7 +138,7 @@ public class GetProductsEndpointTests : IAsyncLifetime
         {
             Id = id,
             Name = name,
-            Price = price,
+            CostPrice = price,
             Description = "Desc",
             ImageFile = "file.png",
             Categories = categories
@@ -154,7 +154,7 @@ public class GetProductsEndpointTests : IAsyncLifetime
             {
                 Id = Guid.NewGuid(),
                 Name = $"Product {i}",
-                Price = i + 1,
+                CostPrice = i + 1,
                 Description = "Desc",
                 ImageFile = "file.png",
                 Categories = ["bikes"]

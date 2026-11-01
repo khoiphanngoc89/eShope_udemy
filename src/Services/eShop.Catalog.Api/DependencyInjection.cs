@@ -1,11 +1,11 @@
 using BuildBlock.Logging.Extensions;
-using BuildingBlock.Data;
-using BuildingBlock.Extensions;
 using eShop.Catalog.Api.Data;
+using eShop.Catalog.Api.Services;
 using Microsoft.Extensions.Options;
 using eShop.Catalog.Api.Options;
 using JasperFx;
 using JasperFx.OpenTelemetry;
+using BuildingBlock.Abstractions.Data;
 
 namespace eShop.Catalog.Api;
 
@@ -36,6 +36,7 @@ public static class DependencyInjection
         builder.Services.AddAppMediatR();
         builder.Services.AddGenericRepository();
         builder.Services.AddScoped<ICatalogUnitOfWork, CatalogUnitOfWork>();
+        builder.Services.AddScoped<IImportProductsReader, ImportProductsReader>();
         builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ICatalogUnitOfWork>());
         builder.Services.AddOptions<DatabaseOptions>()
             .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))
@@ -53,8 +54,6 @@ public static class DependencyInjection
             options.OpenTelemetry.TrackEventCounters(); // Optional: Metrics for Event Store
             return options;
         }).UseLightweightSessions();
-
-
 
         builder.Services.AddAppOpenTelemetry(builder.Environment.ApplicationName, tracing =>
         {
@@ -90,6 +89,4 @@ public static class DependencyInjection
             app.Logger.LogInformation("{ApplicationName} is shutting down", app.Environment.ApplicationName));
         return app;
     }
-
-
 }

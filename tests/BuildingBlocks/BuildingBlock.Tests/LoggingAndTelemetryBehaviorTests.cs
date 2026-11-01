@@ -1,5 +1,5 @@
 using BuildingBlock.Behaviors;
-using BuildingBlock.Cqrs;
+using BuildingBlock.Abstractions.Cqrs;
 using MediatR;
 using Microsoft.Extensions.Logging;
 

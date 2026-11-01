@@ -80,6 +80,7 @@ Host **5000** → container **8080**. HTTP only. Swagger is on in Development.
 |------|--------|------|
 | Create product | `POST` | `/products` |
 | Page / search products | `GET` | `/products` |
+| Import products from Excel | `POST` | `/products/import` |
 | Get product by id | `GET` | `/products/{id}` |
 | Update product | `PUT` | `/products/{id}` |
 | OpenAPI document | `GET` | `/openapi/v1.json` |
@@ -93,11 +94,13 @@ Auth: none. No public delete or activate routes.
 |------|---------|-------|
 | `pageNumber` | `1` | Must be ≥ 1 |
 | `pageSize` | `10` | Must be 1–100 |
+| `orderBy` | `CreatedAt` | `CreatedAt`, `LastModified`, `Name`, `CostPrice`, `SewingCost`, `FabricCostAccessoriesCost`, `PackagingCost`, or `Amount` |
+| `orderDirection` | `desc` | `asc` or `desc` |
 | `name` | omitted | Case-insensitive contains |
-| `price` | omitted | Exact match; reject `< 0` |
+| `costPrice`, `sewingCost`, `fabricCostAccessoriesCost`, `packagingCost` | omitted | Exact match; reject `< 0` |
 | `category` | omitted | Case-insensitive exact match against one listed category |
 
-Combined search fields are AND. Blank `name` or `category` is ignored. Only active, not-deleted products are returned.
+Combined search fields are AND. Blank `name` or `category` is ignored. Sort ties are ordered by `id` ascending. Only active, not-deleted products are returned.
 
 In-stack: `catalogapi:8080`. Published host port: `5000`.
 
@@ -107,14 +110,24 @@ Content-Type: application/json
 
 {
   "name": "Trail Bike",
-  "price": 1299.50,
+  "amount": 5,
+  "costPrice": 1299.50,
+  "sewingCost": 0,
+  "fabricCostAccessoriesCost": 0,
+  "packagingCost": 0,
   "description": "A sturdy trail bike",
   "imageFile": "trail-bike.png",
   "categories": ["bikes", "outdoor"]
 }
 ```
 
-Required JSON: `name`, `price`, `description`, `imageFile`, `categories`. Success: `201` and a non-empty `id`. `Location: /products/{id}`.
+Required JSON: `name`, `amount`, `costPrice`, `sewingCost`, `fabricCostAccessoriesCost`, `packagingCost`, `description`, `imageFile`, `categories`. Success: `201` and a non-empty `id`. `Location: /products/{id}`.
+
+Import products with `POST /products/import` using `multipart/form-data` with a file field named `file`. Upload the `.xlsx` workbook; the importer reads product rows from the `CHI PHÍ` sheet. It maps `Tên sản phẩm`, `Số lượng đặt may`, `Chi phí may/SP`, `Vải + Phụ liệu/SP`, `Đóng gói/SP`, and `Giá vốn/SP` to product fields. A blank cost is treated as zero; if per-product cost is blank, it is calculated from the three component costs. Rows without a product name are skipped. The workbook does not supply description, image, or category values, so those are empty on imported products.
+
+```powershell
+curl.exe -X POST http://localhost:5000/products/import -F "file=@products.xlsx"
+```
 
 ```http
 GET /products?pageNumber=1&pageSize=10&name=bike&category=outdoor

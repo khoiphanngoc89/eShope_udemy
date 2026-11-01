@@ -3,14 +3,27 @@ using FluentValidation;
 
 namespace eShop.Catalog.Api.Products.CreateProduct;
 
-public sealed record CreateProductCommand(string Name, decimal Price, string Description, string ImageFile, List<string> Categories) : ICommand<CreateProductResult>;
+public sealed record CreateProductCommand(
+    string Name,
+    int Amount,
+    decimal CostPrice,
+    decimal SewingCost,
+    decimal FabricCostAccessoriesCost,
+    decimal PackagingCost,
+    string Description,
+    string ImageFile,
+    List<string> Categories) : ICommand<CreateProductResult>;
 public sealed record CreateProductResult(Guid Id);
 public sealed class CreateProductValidator : AbstractValidator<CreateProductCommand>
 {
     public CreateProductValidator()
     {
         RuleFor(x => x.Name).NotEmpty().WithMessage("Product name is required.");
-        RuleFor(x => x.Price).GreaterThan(0).WithMessage("Product price must be greater than zero.");
+        RuleFor(x => x.Amount).GreaterThanOrEqualTo(0).WithMessage("Product amount must be non-negative.");
+        RuleFor(x => x.CostPrice).GreaterThan(0).WithMessage("Product cost price must be greater than zero.");
+        RuleFor(x => x.SewingCost).GreaterThanOrEqualTo(0).WithMessage("Sewing cost must be a non-negative value.");
+        RuleFor(x => x.FabricCostAccessoriesCost).GreaterThanOrEqualTo(0).WithMessage("Fabric and accessories cost must be a non-negative value.");
+        RuleFor(x => x.PackagingCost).GreaterThanOrEqualTo(0).WithMessage("Packaging cost must be a non-negative value.");
         RuleFor(x => x.Description).NotEmpty().WithMessage("Product description is required.");
         RuleFor(x => x.ImageFile).NotEmpty().WithMessage("Product image file is required.");
         RuleFor(x => x.Categories).NotEmpty().WithMessage("At least one category is required.");
@@ -25,7 +38,11 @@ public sealed class CreateProductHandler(ICatalogUnitOfWork unitOfWork) : IComma
         {
             Id = Guid.NewGuid(),
             Name = command.Name,
-            Price = command.Price,
+            Amount = command.Amount,
+            CostPrice = command.CostPrice,
+            SewingCost = command.SewingCost,
+            FabricCostAccessoriesCost = command.FabricCostAccessoriesCost,
+            PackagingCost = command.PackagingCost,
             Description = command.Description,
             ImageFile = command.ImageFile,
             Categories = command.Categories,
