@@ -188,6 +188,14 @@
 
 - [X] T039 [US4] Update `README.md` with the Ops/Infra live-metrics check from `specs/009-local-k8s-wsl2/quickstart.md` §5 and `specs/009-local-k8s-wsl2/contracts/k3s-ops-infra.md`; keep compose files as reference only; do not require `docker compose`; do not add a second Grafana
 
+- [X] T041 [US4] Isolated test in `tests/Services/eShop.Catalog.Api.Tests/LocalK8sRulesTests.cs` that `README.md` documents Catalog redeploy: `-t:PublishContainer`, `-p:ContainerRepository=eshop-catalog-api`, `k3s ctr images import`, `rollout restart deploy/catalogapi`, `imagePullPolicy: Never`, and `wsl.exe -d Ubuntu -u root` (FR-017). MUST fail until T042 matches
+
+- [X] T042 [US4] Add a README Catalog redeploy script: publish tar with `-t:`/`-p:` (Git Bash), import `eshop-catalog-api:local`, then `rollout restart deploy/catalogapi` because the same tag with `Never` does not recreate the pod; Windows password skip is `wsl.exe -d Ubuntu -u root` (research.md §3; FR-017)
+
+- [X] T043 [US4] Isolated test in `tests/Services/eShop.Catalog.Api.Tests/LocalK8sRulesTests.cs` that `README.md` documents deploy-all: `kubectl apply -k deploy/k8s` plus rollout/wait for `catalogdb`, `catalogapi`, `kafka`, `connect`, `connect-register`, `elasticsearch`, `kibana`, `kafka-ui`, `lgtm`, `log-collector`, `postgres-exporter`, `elasticsearch-exporter`, `kafka-exporter`, and `cadvisor` (FR-018). MUST fail until T044 matches
+
+- [X] T044 [US4] Expand README k3s start into a deploy-all script covering every compose identity in namespaces `catalog`, `search`, and `viewer` (FR-008, FR-014, FR-018; contracts/k3s-search.md). Catalog Ready wait stays store-only; remaining rollouts come after.
+
 **Checkpoint**: Isolated T027 and T038 green. Compose files still present and unchanged.
 
 ---

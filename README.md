@@ -192,24 +192,192 @@ sudo k3s ctr images import src/Services/eShop.Catalog.Api/eshop-catalog-api-loca
 # image name: eshop-catalog-api:local
 ```
 
-Redo this step only after Catalog code changes.
+First-time import only. After Catalog code changes, use **2b** — the same tag with `imagePullPolicy: Never` does not restart the pod.
 
-### 3. Start the stack
+### 2b. Redeploy Catalog (code changes)
+
+Publish, import `eshop-catalog-api:local`, then **restart** Catalog. Git Bash treats `/t:` and `/p:` as paths, so this script uses `-t:` and `-p:`. Ubuntu bash accepts both.
+
+Inside Ubuntu:
 
 ```bash
+cd /mnt/c/Khoi/Rider/eShop
+
+dotnet publish src/Services/eShop.Catalog.Api/eShop.Catalog.Api.csproj \
+  -c Release \
+  -t:PublishContainer \
+  -p:ContainerRepository=eshop-catalog-api \
+  -p:ContainerImageTag=local \
+  -p:ContainerArchiveOutputPath=./eshop-catalog-api-local.tar
+
+sudo k3s ctr images import src/Services/eShop.Catalog.Api/eshop-catalog-api-local.tar
+sudo k3s kubectl -n catalog rollout restart deploy/catalogapi
+sudo k3s kubectl -n catalog rollout status deploy/catalogapi
+```
+
+From Windows Git Bash (if `sudo` waits for a password, run k3s as root — no `sudo`):
+
+```bash
+cd /c/Khoi/Rider/eShop
+
+dotnet publish src/Services/eShop.Catalog.Api/eShop.Catalog.Api.csproj \
+  -c Release \
+  -t:PublishContainer \
+  -p:ContainerRepository=eshop-catalog-api \
+  -p:ContainerImageTag=local \
+  -p:ContainerArchiveOutputPath=./eshop-catalog-api-local.tar
+
+wsl.exe -d Ubuntu -u root -- bash -lc \
+  'k3s ctr images import /mnt/c/Khoi/Rider/eShop/src/Services/eShop.Catalog.Api/eshop-catalog-api-local.tar'
+wsl.exe -d Ubuntu -u root -- bash -lc \
+  'k3s kubectl -n catalog rollout restart deploy/catalogapi && k3s kubectl -n catalog rollout status deploy/catalogapi --timeout=180s'
+```
+
+Expect Catalog `1/1`. Then `GET http://<wsl-ip>:30050/products?pageNumber=1&pageSize=10`.
+
+### 3. Deploy all services
+
+`kubectl apply -k deploy/k8s` creates every compose identity. Catalog Ready is store-only (`catalogdb` then `catalogapi`). Wait the rest if you want search and viewer up, not to make Catalog Ready.
+
+| Namespace | Service | Kind |
+|-----------|---------|------|
+| `catalog` | `catalogdb` | Deployment |
+| `catalog` | `catalogapi` | Deployment |
+| `search` | `elasticsearch` | Deployment |
+| `search` | `kafka` | Deployment |
+| `search` | `connect` | Deployment |
+| `search` | `connect-register` | Job |
+| `search` | `kibana` | Deployment |
+| `search` | `kafka-ui` | Deployment |
+| `viewer` | `lgtm` | Deployment |
+| `viewer` | `log-collector` | Deployment |
+| `viewer` | `postgres-exporter` | Deployment |
+| `viewer` | `elasticsearch-exporter` | Deployment |
+| `viewer` | `kafka-exporter` | Deployment |
+| `viewer` | `cadvisor` | Deployment |
+
+Inside Ubuntu:
+
+```bash
+cd /mnt/c/Khoi/Rider/eShop
 sudo systemctl start k3s
 kubectl apply -f deploy/k8s/namespace.yaml
 kubectl apply -k deploy/k8s
+
 kubectl -n catalog rollout status deploy/catalogdb
 kubectl -n catalog rollout status deploy/catalogapi
+
+kubectl -n search rollout status deploy/elasticsearch
+kubectl -n search rollout status deploy/kafka
+kubectl -n search rollout status deploy/connect
+kubectl -n search rollout status deploy/kibana
+kubectl -n search rollout status deploy/kafka-ui
+kubectl -n search wait --for=condition=complete job/connect-register --timeout=300s
+
+kubectl -n viewer rollout status deploy/lgtm
+kubectl -n viewer rollout status deploy/log-collector
+kubectl -n viewer rollout status deploy/postgres-exporter
+kubectl -n viewer rollout status deploy/elasticsearch-exporter
+kubectl -n viewer rollout status deploy/kafka-exporter
+kubectl -n viewer rollout status deploy/cadvisor
+
+sudo k3s kubectl get pods -A
 ```
 
-Official apply hosts namespaces `catalog`, `search`, and `viewer`. Catalog Ready waits only on the store. Search and viewer can still be starting.
-
-Check pods:
+From Windows Git Bash (if `sudo` waits for a password, run as root):
 
 ```bash
-sudo k3s kubectl get pods -A
+wsl.exe -d Ubuntu -u root -- bash -lc 'cd /mnt/c/Khoi/Rider/eShop
+set -e
+systemctl start k3s
+k3s kubectl apply -f deploy/k8s/namespace.yaml
+k3s kubectl apply -k deploy/k8s
+k3s kubectl -n catalog rollout status deploy/catalogdb
+k3s kubectl -n catalog rollout status deploy/catalogapi
+k3s kubectl -n search rollout status deploy/elasticsearch
+k3s kubectl -n search rollout status deploy/kafka
+k3s kubectl -n search rollout status deploy/connect
+k3s kubectl -n search rollout status deploy/kibana
+k3s kubectl -n search rollout status deploy/kafka-ui
+k3s kubectl -n search wait --for=condition=complete job/connect-register --timeout=300s
+k3s kubectl -n viewer rollout status deploy/lgtm
+k3s kubectl -n viewer rollout status deploy/log-collector
+k3s kubectl -n viewer rollout status deploy/postgres-exporter
+k3s kubectl -n viewer rollout status deploy/elasticsearch-exporter
+k3s kubectl -n viewer rollout status deploy/kafka-exporter
+k3s kubectl -n viewer rollout status deploy/cadvisor
+k3s kubectl get pods -A
+'
+```
+
+Official apply hosts namespaces `catalog`, `search`, and `viewer`. Catalog HTTP works after the two catalog rollouts even if search or viewer is still starting.
+
+### 3a. Redeploy all services (YAML changes)
+
+Does **not** rebuild Catalog code (use **2b** for that). Apply manifests, restart every Deployment, recreate the register Job:
+
+```bash
+cd /mnt/c/Khoi/Rider/eShop
+kubectl apply -f deploy/k8s/namespace.yaml
+kubectl apply -k deploy/k8s
+
+kubectl -n catalog rollout restart deploy/catalogdb
+kubectl -n catalog rollout restart deploy/catalogapi
+kubectl -n search rollout restart deploy/elasticsearch
+kubectl -n search rollout restart deploy/kafka
+kubectl -n search rollout restart deploy/connect
+kubectl -n search rollout restart deploy/kibana
+kubectl -n search rollout restart deploy/kafka-ui
+kubectl -n viewer rollout restart deploy/lgtm
+kubectl -n viewer rollout restart deploy/log-collector
+kubectl -n viewer rollout restart deploy/postgres-exporter
+kubectl -n viewer rollout restart deploy/elasticsearch-exporter
+kubectl -n viewer rollout restart deploy/kafka-exporter
+kubectl -n viewer rollout restart deploy/cadvisor
+
+kubectl -n search delete job connect-register --ignore-not-found
+kubectl apply -k deploy/k8s
+
+kubectl -n catalog rollout status deploy/catalogdb
+kubectl -n catalog rollout status deploy/catalogapi
+kubectl -n search rollout status deploy/elasticsearch
+kubectl -n search rollout status deploy/kafka
+kubectl -n search rollout status deploy/connect
+kubectl -n search rollout status deploy/kibana
+kubectl -n search rollout status deploy/kafka-ui
+kubectl -n search wait --for=condition=complete job/connect-register --timeout=300s
+kubectl -n viewer rollout status deploy/lgtm
+kubectl -n viewer rollout status deploy/log-collector
+kubectl -n viewer rollout status deploy/postgres-exporter
+kubectl -n viewer rollout status deploy/elasticsearch-exporter
+kubectl -n viewer rollout status deploy/kafka-exporter
+kubectl -n viewer rollout status deploy/cadvisor
+```
+
+From Windows Git Bash:
+
+```bash
+wsl.exe -d Ubuntu -u root -- bash -lc 'cd /mnt/c/Khoi/Rider/eShop
+set -e
+k3s kubectl apply -f deploy/k8s/namespace.yaml
+k3s kubectl apply -k deploy/k8s
+k3s kubectl -n catalog rollout restart deploy/catalogdb
+k3s kubectl -n catalog rollout restart deploy/catalogapi
+k3s kubectl -n search rollout restart deploy/elasticsearch
+k3s kubectl -n search rollout restart deploy/kafka
+k3s kubectl -n search rollout restart deploy/connect
+k3s kubectl -n search rollout restart deploy/kibana
+k3s kubectl -n search rollout restart deploy/kafka-ui
+k3s kubectl -n viewer rollout restart deploy/lgtm
+k3s kubectl -n viewer rollout restart deploy/log-collector
+k3s kubectl -n viewer rollout restart deploy/postgres-exporter
+k3s kubectl -n viewer rollout restart deploy/elasticsearch-exporter
+k3s kubectl -n viewer rollout restart deploy/kafka-exporter
+k3s kubectl -n viewer rollout restart deploy/cadvisor
+k3s kubectl -n search delete job connect-register --ignore-not-found
+k3s kubectl apply -k deploy/k8s
+k3s kubectl get pods -A
+'
 ```
 
 ### 3b. Check Kubernetes
@@ -236,7 +404,10 @@ sudo k3s kubectl -n catalog rollout status deploy/catalogapi
 sudo k3s kubectl -n search rollout status deploy/elasticsearch
 sudo k3s kubectl -n search rollout status deploy/kafka
 sudo k3s kubectl -n search rollout status deploy/connect
+sudo k3s kubectl -n search rollout status deploy/kibana
+sudo k3s kubectl -n search rollout status deploy/kafka-ui
 sudo k3s kubectl -n viewer rollout status deploy/lgtm
+sudo k3s kubectl -n viewer rollout status deploy/log-collector
 sudo k3s kubectl -n viewer rollout status deploy/postgres-exporter
 sudo k3s kubectl -n viewer rollout status deploy/elasticsearch-exporter
 sudo k3s kubectl -n viewer rollout status deploy/kafka-exporter

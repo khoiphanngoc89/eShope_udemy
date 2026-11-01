@@ -21,14 +21,14 @@ From WSL2 at repo root:
 ```bash
 dotnet publish src/Services/eShop.Catalog.Api/eShop.Catalog.Api.csproj \
   -c Release \
-  /t:PublishContainer \
-  /p:ContainerRepository=eshop-catalog-api \
-  /p:ContainerImageTag=local \
-  /p:ContainerArchiveOutputPath=./eshop-catalog-api-local.tar
-sudo k3s ctr images import ./eshop-catalog-api-local.tar
+  -t:PublishContainer \
+  -p:ContainerRepository=eshop-catalog-api \
+  -p:ContainerImageTag=local \
+  -p:ContainerArchiveOutputPath=./eshop-catalog-api-local.tar
+sudo k3s ctr images import src/Services/eShop.Catalog.Api/eshop-catalog-api-local.tar
 ```
 
-Expect: image `eshop-catalog-api:local` listed by `sudo k3s ctr images ls`.
+Expect: image `eshop-catalog-api:local` listed by `sudo k3s ctr images ls`. Git Bash: use `-t:`/`-p:` (`/t:` is treated as a path). After a **same-tag** import, `kubectl -n catalog rollout restart deploy/catalogapi` (`imagePullPolicy: Never` does not recreate the pod). From Windows if `sudo` waits for a password: `wsl.exe -d Ubuntu -u root`.
 
 ## 3. Apply the full stack
 

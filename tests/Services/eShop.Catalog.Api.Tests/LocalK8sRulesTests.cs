@@ -348,6 +348,47 @@ public class LocalK8sRulesTests
     }
 
     [Fact]
+    public void Readme_DocumentsCatalogRedeploy()
+    {
+        var readme = ReadRequired("README.md");
+
+        Assert.Contains("-t:PublishContainer", readme, StringComparison.Ordinal);
+        Assert.Contains("-p:ContainerRepository=eshop-catalog-api", readme, StringComparison.Ordinal);
+        Assert.Contains("-p:ContainerImageTag=local", readme, StringComparison.Ordinal);
+        Assert.Contains("k3s ctr images import", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout restart deploy/catalogapi", readme, StringComparison.Ordinal);
+        Assert.Contains("imagePullPolicy: Never", readme, StringComparison.Ordinal);
+        Assert.Contains("wsl.exe -d Ubuntu -u root", readme, StringComparison.Ordinal);
+        Assert.Contains("eshop-catalog-api-local.tar", readme, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Readme_DocumentsFullStackDeploy()
+    {
+        var readme = ReadRequired("README.md");
+
+        Assert.Contains("kubectl apply -f deploy/k8s/namespace.yaml", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl apply -k deploy/k8s", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/catalogdb", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/catalogapi", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/elasticsearch", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/kafka", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/connect", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/kibana", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/kafka-ui", readme, StringComparison.Ordinal);
+        Assert.Contains("job/connect-register", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/lgtm", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/log-collector", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/postgres-exporter", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/elasticsearch-exporter", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/kafka-exporter", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout status deploy/cadvisor", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout restart deploy/catalogdb", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout restart deploy/kafka", readme, StringComparison.Ordinal);
+        Assert.Contains("rollout restart deploy/lgtm", readme, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void IsolatedTestSource_DoesNotStartClusterOrCompose()
     {
         var source = ReadRequired("tests", "Services", "eShop.Catalog.Api.Tests", "LocalK8sRulesTests.cs");

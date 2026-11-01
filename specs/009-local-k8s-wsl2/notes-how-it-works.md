@@ -76,9 +76,10 @@ k3s install disables Traefik and ServiceLB. Host ports come from the port-forwar
 
 Public images are pulled by k3s. Catalog is:
 
-1. `dotnet publish … /t:PublishContainer` → `eshop-catalog-api-local.tar`
-2. `sudo k3s ctr images import …`
+1. `dotnet publish … -t:PublishContainer` → `eshop-catalog-api-local.tar` (Git Bash: not `/t:`)
+2. `sudo k3s ctr images import …` (or `wsl.exe -d Ubuntu -u root` if `sudo` waits for a password)
 3. Deployment `image: eshop-catalog-api:local`, `imagePullPolicy: Never`
+4. After a same-tag import: `kubectl -n catalog rollout restart deploy/catalogapi`
 
 ---
 

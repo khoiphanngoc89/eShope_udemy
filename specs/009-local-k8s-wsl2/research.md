@@ -75,6 +75,10 @@ sudo k3s ctr images import ./eshop-catalog-api-local.tar
 
 Catalog Deployment: `image: eshop-catalog-api:local`, `imagePullPolicy: Never` (do not hit Docker Hub for a local tag).
 
+Git Bash on Windows converts `/t:` and `/p:` into paths, so the documented publish MUST use `-t:PublishContainer` and `-p:ContainerRepository=…`. Ubuntu bash accepts both.
+
+Importing the same tag does **not** recreate the pod. After `k3s ctr images import`, README MUST `kubectl -n catalog rollout restart deploy/catalogapi` and wait `rollout status`. From Windows, if `sudo` waits for a password, run `wsl.exe -d Ubuntu -u root -- bash -lc 'k3s …'` (no `sudo`).
+
 This is the same published app as `src/Services/eShop.Catalog.Api/Dockerfile` (aspnet 10.0, listen 8080). Isolated tests MUST NOT run publish, `k3s ctr`, or `kubectl apply`.
 
 **Rationale**: Spec forbids requiring Docker or Podman. `ContainerArchiveOutputPath` writes an OCI tar without a daemon. `k3s ctr` is already on the machine after k3s install.
@@ -115,7 +119,7 @@ This is the same published app as `src/Services/eShop.Catalog.Api/Dockerfile` (a
 
 ## 7. Layout: kustomize, no Helm, full stack
 
-**Decision**: Official apply is `kubectl apply -f deploy/k8s/namespace.yaml && kubectl apply -k deploy/k8s`. Three overlays. No Helm. No NetworkPolicy. No second cluster.
+**Decision**: Official apply is `kubectl apply -f deploy/k8s/namespace.yaml && kubectl apply -k deploy/k8s`. Three overlays. No Helm. No NetworkPolicy. No second cluster. README deploy-all waits Catalog Ready first (`catalogdb`, `catalogapi`), then every remaining compose identity: `elasticsearch`, `kafka`, `connect`, `connect-register`, `kibana`, `kafka-ui`, `lgtm`, `log-collector`, `postgres-exporter`, `elasticsearch-exporter`, `kafka-exporter`, `cadvisor`. YAML-only redeploy is apply + `rollout restart` of those Deployments and recreate Job `connect-register`.
 
 **Rationale**: Unchanged from prior design except the runtime is k3s.
 
