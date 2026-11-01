@@ -1,10 +1,10 @@
 # eShop
 
-Local .NET e-commerce backend. Today it is one vertical: **Catalog** (create, update, get, and page/search products), shared building blocks, PostgreSQL, and optional Grafana/Loki for logs.
+Local .NET e-commerce backend. Today it is one vertical: **Catalog** (create, update, get, and page/search products), shared building blocks, PostgreSQL, and optional Grafana (Ops/Infra + Log/App) plus Loki.
 
-Work is spec-driven (`specs/`). Catalog’s documented run path is **compose**, not `dotnet run`. Isolated tests do not need Postgres or Grafana.
+Work is spec-driven (`specs/`). Catalog’s documented run path is **compose**, not `dotnet run`. Isolated tests do not need Postgres, Grafana, or the Elasticsearch exporter.
 
-**Stack:** .NET 10, Carter, MediatR, Marten, Serilog → OTLP, PostgreSQL 16.15, Grafana LGTM 0.38.0.
+**Stack:** .NET 10, Carter, MediatR, Marten, Serilog → OTLP, PostgreSQL 16.15, Grafana LGTM 0.38.0, elasticsearch-exporter v1.8.0.
 
 Solution: `eShop.slnx`.
 
@@ -12,7 +12,7 @@ Solution: `eShop.slnx`.
 
 ## What it does
 
-A client `POST`s a product to Catalog.Api. Catalog stores it in PostgreSQL through Marten and returns `201` with a new `id`. Clients can `GET /products` (page plus optional name, price, or category search **from Elasticsearch**), `GET /products/{id}` (catalog store), and `PUT /products/{id}`. If the search index is down, `GET /products` returns **503**; create and get-by-id still work. Debezium copies store changes onto Kafka topics prefixed `eshop.catalog.sync`. Request logs go to the console and, when LGTM is up, to Loki. Correlation IDs (`trace_id`, `span_id`) are attached when ASP.NET has a request activity. There is no identity, basket, or ordering service yet.
+A client `POST`s a product to Catalog.Api. Catalog stores it in PostgreSQL through Marten and returns `201` with a new `id`. Clients can `GET /products` (page plus optional name, price, or category search **from Elasticsearch**), `GET /products/{id}` (catalog store), `PUT /products/{id}`, and `POST /products/import`. Create, update, and import do **not** write Elasticsearch. Debezium snapshots then streams `mt_doc_product` onto Kafka topics prefixed `eshop.catalog.sync`; Catalog’s indexer upserts `catalog-products`. If Elasticsearch is down, `GET /products` returns **503**; create, import, and get-by-id still work. If the index does not exist yet (no document has been synced), `GET /products` is **200** with empty `items`, not 503. Request logs go to the console and, when LGTM is up, to Loki. Compose also dual-writes Catalog **Error/Fatal** logs to Elasticsearch index `catalog-app-logs` (fail-open). Correlation IDs (`trace_id`, `span_id`) are attached when ASP.NET has a request activity. There is no identity, basket, or ordering service yet.
 
 ```
 Client  →  catalogapi :8080 (published :5000)  →  catalogdb :5432 (Marten)
@@ -20,7 +20,8 @@ Client  →  catalogapi :8080 (published :5000)  →  catalogdb :5432 (Marten)
                       │                            └── Debezium → kafka → indexer → elasticsearch
                       ├── kafka-ui :8080  (filter eshop.catalog.sync)
                       ├── kibana :5601    (index catalog-products)
-                      └── lgtm :4318 (Grafana :3000, Loki, Tempo)
+                      ├── elasticsearch-exporter :9114 (cluster metrics)
+                      └── lgtm :4318 (Grafana :3000 Ops/Infra + Log/App, Loki, Tempo)
 ```
 
 ---
@@ -39,6 +40,8 @@ tests/                      Isolated suites (no live Postgres, no Grafana)
 deploy/
   compose.yaml              Service names and images
   compose.override.yaml     Ports, env, healthchecks, Catalog build
+  prometheus/               Extended LGTM Prometheus scrape (ES + Kafka exporters)
+  grafana/provisioning/     Ops/Infra + Log/App dashboards and alerts
 specs/                      Feature specs, plans, contracts
 ```
 
@@ -64,11 +67,17 @@ docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wa
 docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait catalogapi
 
 # Search sync (Kafka, Debezium, Elasticsearch, Kafka UI, Kibana). Catalog starts without these.
-# connect-register snapshots mt_doc_product after Catalog has created the table.
+# connect-register POSTs deploy/debezium/catalog-product-connector.json after Catalog created mt_doc_product.
 docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait kafka connect elasticsearch kibana kafka-ui connect-register
 
-# Grafana / Loki / OTLP (optional)
-docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait lgtm
+# Grafana / Loki / OTLP + cluster metrics (optional; Catalog does not require these)
+docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait \
+  catalogdb postgres-exporter cadvisor elasticsearch elasticsearch-exporter \
+  kafka kafka-exporter lgtm
+
+# Loki process logs via Alloy (optional; Catalog and Kafka do not require log-collector)
+docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wait \
+  catalogdb postgres-exporter cadvisor lgtm kafka catalogapi log-collector
 ```
 
 `--wait` returns only when healthchecks pass.
@@ -103,11 +112,11 @@ Auth: none. No public delete or activate routes.
 | `pageSize` | `10` | Must be 1–100 |
 | `orderBy` | `CreatedAt` | `CreatedAt`, `LastModified`, `Name`, `CostPrice`, `SewingCost`, `FabricCostAccessoriesCost`, `PackagingCost`, or `Amount` |
 | `orderDirection` | `desc` | `asc` or `desc` |
-| `name` | omitted | Case-insensitive contains |
+| `name` | omitted | Case-insensitive contains on the **whole name** (not tokenized words). Vietnamese full names work, e.g. `Đầm Alice - size 1 (Xanh dương)`. Accent-folding is not applied: `dam` does not match `Đầm`. |
 | `costPrice`, `sewingCost`, `fabricCostAccessoriesCost`, `packagingCost` | omitted | Exact match; reject `< 0` |
 | `category` | omitted | Case-insensitive exact match against one listed category |
 
-Combined search fields are AND. Blank `name` or `category` is ignored. Sort ties are ordered by `id` ascending. Only active, not-deleted products are returned. `GET /products` reads Elasticsearch, not the catalog store. Index down → `503` `{ message }` (no stack).
+Combined search fields are AND. Blank `name` or `category` is ignored. Sort ties are ordered by `id` ascending. Only active, not-deleted products are returned. `GET /products` reads Elasticsearch, not the catalog store. Index down → `503` `{ message }` (no stack). Missing index (nothing synced yet) → `200` with `items: []`.
 
 Operator UIs (optional, not required for `dotnet test`):
 
@@ -115,6 +124,10 @@ Operator UIs (optional, not required for `dotnet test`):
 |----|-----|-----|
 | Kafka UI | http://localhost:8080 | Filter topics `eshop.catalog.sync` |
 | Kibana | http://localhost:5601 | Data view `catalog-products` |
+| Grafana Ops/Infra | http://localhost:3000 | Product-stack healthy/not; click for CPU, RAM, and richer detail (admin/admin) |
+| Grafana Log/App | http://localhost:3000 | Elasticsearch `catalog-app-logs*`: Catalog Error/Fatal |
+| Exporter metrics | http://localhost:9114/metrics | `elasticsearch_cluster_health_` series when ES is up |
+| Kafka exporter | http://localhost:9308/metrics | `kafka_brokers` / topic / lag when Kafka is up |
 
 In-stack: `catalogapi:8080`. Published host port: `5000`.
 
@@ -139,15 +152,24 @@ Required JSON: `name`, `amount`, `costPrice`, `sewingCost`, `fabricCostAccessori
 
 Import products with `POST /products/import` using `multipart/form-data` with a file field named `file`. Upload the `.xlsx` workbook; the importer reads product rows from the `CHI PHÍ` sheet. It maps `Tên sản phẩm`, `Số lượng đặt may`, `Chi phí may/SP`, `Vải + Phụ liệu/SP`, `Đóng gói/SP`, and `Giá vốn/SP` to product fields. A blank cost is treated as zero; if per-product cost is blank, it is calculated from the three component costs. Rows without a product name are skipped. The workbook does not supply description, image, or category values, so those are empty on imported products.
 
+Import (like create) returns after the catalog-store commit. Those products appear on `GET /products` only after search sync: start `connect-register` with the search stack, then wait a few seconds. If search sync is not running, import still succeeds and `GET /products/{id}` still works; `GET /products` stays empty or returns 503 if Elasticsearch is down.
+
 ```powershell
 curl.exe -X POST http://localhost:5000/products/import -F "file=@products.xlsx"
 ```
 
 ```http
 GET /products?pageNumber=1&pageSize=10&name=bike&category=outdoor
+GET /products?name=Đầm Alice - size 1 (Xanh dương)
 ```
 
 Success: `200` with `pageNumber`, `pageSize`, `totalCount`, and `items`.
+
+Check that Debezium is registered after search sync is up:
+
+```bash
+curl http://localhost:8083/connectors/eshop-catalog-product/status
+```
 
 ### PostgreSQL (`catalogdb`)
 
@@ -179,14 +201,45 @@ One container. Sign-in: **admin** / **admin**. Catalog still starts if LGTM is d
 | OTLP HTTP | `lgtm:4318` | `4318` |
 | OTLP gRPC | `lgtm:4317` | `4317` |
 
-Catalog compose sends OTLP to `http://lgtm:4318`.
+Catalog compose sends OTLP to `http://lgtm:4318`. Catalog Error/Fatal logs also go to Elasticsearch `catalog-app-logs` when `Serilog__Elasticsearch__Nodes__0` is set. Isolated `dotnet test` does not set that sink.
 
-Loki (`3100`), Tempo (`3200`), Prometheus (`9090`) stay inside the container. Query logs in Grafana: **Explore → Loki**.
+Loki (`3100`), Tempo (`3200`), Prometheus (`9090`) stay inside the container. In Grafana:
+
+- **Ops/Infra** (Prometheus only) — one product-stack overview (Catalog.Api, Kafka, connector, search index, Kibana, Kafka UI, exporters). Healthy = process up. Stopped or missing = not healthy. Overview shows **CPU and RAM** for those identities. **Catalog Db** is its own row (up, connections, size). Zero store size or ES documents is valid and is not not-healthy. A bottom **Grafana / LGTM disk** panel shows Prometheus TSDB size inside `lgtm`. There is no service dropdown. Collector and Grafana are not required on the health overview. Catalog does not scrape the store or cadvisor.
+- **Log/App** (Elasticsearch data source, provisioned) — why it broke? Filter `service.name` = `eShop.Catalog.Api`.
+- **Explore → Loki** — process-line search. Loki is not replaced.
+
+```bash
+curl -s http://localhost:9114/metrics | findstr elasticsearch_cluster_health_
+curl -s http://localhost:9308/metrics | findstr kafka_brokers
+curl -s http://localhost:9187/metrics | findstr pg_up
+```
 
 ```logql
 {service_name=~".*eShop.Catalog.Api.*"}
 | line_format "{{__line__}}\ntrace_id='{{.trace_id}}'\nspan_id='{{.span_id}}'"
 ```
+
+Catalog application lines (OTLP only — not a second container copy). Last 15 minutes. Do not add a Loki data source.
+
+```logql
+{service_name=~".*eShop.Catalog.Api.*"}
+{service_name=~".*eShop.Catalog.Api.*"} |= "Error"
+{service_name=~".*eShop.Catalog.Api.*"} |= "failed"
+```
+
+Non-application process lines (Docker stdout → Alloy → Loki). Empty before first write is valid.
+
+```logql
+{compose_service="catalogdb"}
+{compose_service="kafka"}
+{compose_service="connect"}
+{compose_service="elasticsearch"}
+{compose_service="kibana"}
+{compose_service="kafka-ui"}
+```
+
+`{compose_service="kafka"}` is Kafka **broker process** lines, not topic payloads — those stay in Kafka UI http://localhost:8080. Catalog request logs use the OTLP selector above, not a second container-tail copy of Catalog.Api. Catalog and Kafka stay up if `log-collector`, `cadvisor`, or `postgres-exporter` is stopped.
 
 `trace_id` / `span_id` are fields on **request** rows, not in the default message text. Startup lines have none.
 
@@ -196,7 +249,7 @@ After Catalog handles at least one public request with LGTM up, open Grafana **E
 
 ## Tests
 
-Isolated: no compose, no live Postgres, no Grafana. Catalog tests use a dummy `CatalogDb` and an in-memory document session.
+Isolated: no compose, no live Postgres, no Grafana, no Elasticsearch exporter. Catalog tests use a dummy `CatalogDb` and an in-memory document session.
 
 ```bash
 dotnet test tests/Services/eShop.Catalog.Api.Tests/eShop.Catalog.Api.Tests.csproj
@@ -215,5 +268,8 @@ dotnet test tests/BuildingBlocks/BuildBlock.Logging.Tests/BuildBlock.Logging.Tes
 | [003-catalog-buildingblocks-tests](specs/003-catalog-buildingblocks-tests/spec.md) | Isolated Catalog + building-block tests |
 | [004-catalog-postgres-compose](specs/004-catalog-postgres-compose/spec.md) | `catalogdb` + `catalogapi` in compose |
 | [005-catalog-page-entities](specs/005-catalog-page-entities/spec.md) | Paginated browse, name/price/category search, shared `BaseEntity` |
+| [006-hybrid-observability](specs/006-hybrid-observability/spec.md) | Grafana Ops/Infra (Prometheus + exporter) and Log/App (Catalog Error → ES); fail-open Catalog |
+| [007-loki-promtail](specs/007-loki-promtail/spec.md) | Alloy collector: Catalog + Kafka broker stdout → existing Loki; topic payloads stay in Kafka UI |
+| [008-all-container-logs](specs/008-all-container-logs/spec.md) | All non-app container logs in Loki (no Catalog duplicate); Ops/Infra overview + click for CPU/RAM and store health |
 
 New production C# should follow an existing spec (or a new one) and TDD.

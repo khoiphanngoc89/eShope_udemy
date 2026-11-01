@@ -2,6 +2,7 @@ using BuildBlock.Logging.Extensions;
 using BuildingBlock.Extensions;
 using BuildingBlock.Search;
 using eShop.Catalog.Api.Data;
+using eShop.Catalog.Api.Logging;
 using eShop.Catalog.Api.Search;
 using eShop.Catalog.Api.Services;
 using Microsoft.Extensions.Options;
@@ -9,6 +10,7 @@ using eShop.Catalog.Api.Options;
 using JasperFx;
 using JasperFx.OpenTelemetry;
 using BuildingBlock.Abstractions.Data;
+using OpenTelemetry.Metrics;
 
 namespace eShop.Catalog.Api;
 
@@ -30,6 +32,7 @@ public static class DependencyInjection
     }
     internal static WebApplication AddCatalogServices(this WebApplicationBuilder builder)
     {
+        builder.AddCatalogErrorLogSink();
         builder.AddAppLogging();
         // Add services to the container.
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -72,11 +75,14 @@ public static class DependencyInjection
             return options;
         }).UseLightweightSessions();
 
-        builder.Services.AddAppOpenTelemetry(builder.Environment.ApplicationName, tracing =>
-        {
-            // Tell OpenTelemetry to listen to Marten's internal engine
-            tracing.AddSource("Marten");
-        });
+        builder.Services.AddAppOpenTelemetry(
+            builder.Environment.ApplicationName,
+            tracing => tracing.AddSource("Marten"),
+            metrics =>
+            {
+                metrics.AddMeter(CatalogSearchMetrics.MeterName);
+                metrics.AddMeter(SearchMetrics.SharedMeterName);
+            });
         return builder.Build();
     }
 

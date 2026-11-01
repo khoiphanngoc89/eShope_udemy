@@ -1,0 +1,86 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: elasticsearch-cluster
+    folder: Ops / Infra
+    interval: 1m
+    rules:
+      - uid: es-cluster-red
+        title: Elasticsearch cluster red
+        condition: A
+        for: 0m
+        noDataState: OK
+        execErrState: OK
+        annotations:
+          summary: Search-index cluster health is red
+          description: Fire when elasticsearch_cluster_health_status color="red". Yellow replicas on a single node are not this alert.
+        labels:
+          severity: critical
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: max(elasticsearch_cluster_health_status{color="red"}) == 1
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+
+      - uid: es-heap-pressure
+        title: Elasticsearch heap pressure
+        condition: A
+        for: 2m
+        noDataState: OK
+        execErrState: OK
+        annotations:
+          summary: Elasticsearch heap used/max is above 90%
+        labels:
+          severity: warning
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 180
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: (elasticsearch_jvm_memory_used_bytes{area="heap"} / elasticsearch_jvm_memory_max_bytes{area="heap"}) > 0.90
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+
+      - uid: es-cpu-pressure
+        title: Elasticsearch CPU pressure
+        condition: A
+        for: 5m
+        noDataState: OK
+        execErrState: OK
+        annotations:
+          summary: Elasticsearch process CPU is above 90%
+        labels:
+          severity: warning
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 360
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: elasticsearch_process_cpu_percent > 90
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A

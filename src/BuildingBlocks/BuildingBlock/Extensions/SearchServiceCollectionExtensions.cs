@@ -19,7 +19,7 @@ public static class SearchServiceCollectionExtensions
             .Bind(configuration.GetSection(ElasticsearchOptions.SectionName));
         services.AddOptions<KafkaOptions>()
             .Bind(configuration.GetSection(KafkaOptions.SectionName));
-        services.TryAddSingleton(new SearchMetrics("eShop.Search", "search"));
+        services.TryAddSingleton(new SearchMetrics(SearchMetrics.SharedMeterName, "search"));
         services.AddSingleton<ISearchStore<T>>(provider =>
         {
             var elasticsearch = provider.GetRequiredService<IOptions<ElasticsearchOptions>>().Value;

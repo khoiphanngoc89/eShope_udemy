@@ -1,0 +1,84 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch" },
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "code": { "language": "markdown", "showLineNumbers": false, "showMiniMap": false },
+        "content": "Log/App answers *why it broke?* from Elasticsearch (`catalog-app-logs*`, `@timestamp`). Filtered to `service.name` = `eShop.Catalog.Api`. An empty result means no Error/Fatal events — not a configuration error. Loki Explore stays available for the same service.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.0.0",
+      "title": "Empty result is not a configuration error",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 3 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [
+        {
+          "alias": "",
+          "bucketAggs": [
+            {
+              "field": "@timestamp",
+              "id": "2",
+              "settings": { "interval": "auto" },
+              "type": "date_histogram"
+            }
+          ],
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch" },
+          "metrics": [{ "id": "1", "type": "count" }],
+          "query": "service.name:\"eShop.Catalog.Api\" AND (log.level:Error OR log.level:Fatal OR level:Error OR level:Fatal)",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Error volume",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 11 },
+      "id": 3,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "alias": "",
+          "bucketAggs": [],
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch" },
+          "metrics": [{ "id": "1", "type": "logs" }],
+          "query": "service.name:\"eShop.Catalog.Api\" AND (log.level:Error OR log.level:Fatal OR level:Error OR level:Fatal)",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Catalog errors",
+      "type": "logs"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["log-app", "elasticsearch"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Log/App",
+  "uid": "eshop-log-app",
+  "version": 1
+}

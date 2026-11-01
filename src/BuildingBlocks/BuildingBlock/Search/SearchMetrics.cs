@@ -4,6 +4,8 @@ namespace BuildingBlock.Search;
 
 public sealed class SearchMetrics
 {
+    public const string SharedMeterName = "eShop.Search";
+
     public SearchMetrics(string meterName, string instrumentPrefix)
     {
         MeterName = meterName;

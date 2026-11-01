@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -8,28 +7,29 @@ namespace BuildingBlock.Extensions;
 
 public static class OpenTelemetryExtensions
 {
-    public static IServiceCollection AddAppOpenTelemetry(this IServiceCollection services, string applicationName, Action<TracerProviderBuilder>? configureDatabaseTracing = null)
+    public static IServiceCollection AddAppOpenTelemetry(
+        this IServiceCollection services,
+        string applicationName,
+        Action<TracerProviderBuilder>? configureTracing = null,
+        Action<MeterProviderBuilder>? configureMetrics = null)
     {
         services.AddOpenTelemetry()
-        .WithTracing(tracing =>
-         {
-             tracing
-             .AddSource(applicationName)
-             .AddSource("eShop.Application")
-             .AddAspNetCoreInstrumentation()       // Automatically traces host HTTP calls
-             .AddHttpClientInstrumentation()       // Tracks outgoing HTTP dependencies automatically
-             .AddOtlpExporter();
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddSource(applicationName)
+                    .AddSource("eShop.Application")
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddOtlpExporter();
 
-             configureDatabaseTracing?.Invoke(tracing);
-
-
-         })                   // Emits standard format spans directly to an OTel Collector/agent
-            .WithLogging(logging => logging
-            .AddOtlpExporter())
+                configureTracing?.Invoke(tracing);
+            })
+            .WithLogging(logging => logging.AddOtlpExporter())
             .WithMetrics(metrics =>
             {
-                metrics.AddMeter("eShop.Catalog.Search");
-                metrics.AddMeter("eShop.Search");
+                metrics.AddAspNetCoreInstrumentation();
+                configureMetrics?.Invoke(metrics);
                 metrics.AddOtlpExporter();
             });
         return services;
