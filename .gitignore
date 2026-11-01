@@ -526,3 +526,14 @@ _ReSharper.Caches/
 .idea/**/tasks.xml
 .idea/**/shelf/
 scripts/secrets/**
+
+# Local Kubernetes secrets and kubeconfig (never commit)
+*.secret.yaml
+secrets/
+.kube/
+kubeconfig*
+*.key
+*.crt
+
+# Local Catalog image tar for k3s import (dotnet publish /t:PublishContainer)
+eshop-catalog-api-local.tar

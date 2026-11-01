@@ -1,5 +1,9 @@
 .git
+.git/
 .gitignore
+.dockerignore
+Dockerfile*
+*.log*
 .vs
 .idea
 .vscode

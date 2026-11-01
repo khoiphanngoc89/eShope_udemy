@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogdb
+  namespace: catalog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalogdb
+  template:
+    metadata:
+      labels:
+        app: catalogdb
+    spec:
+      containers:
+        - name: catalogdb
+          image: postgres:16.15
+          args:
+            - postgres
+            - -c
+            - wal_level=logical
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              value: catalog
+            - name: POSTGRES_PASSWORD
+              value: catalog
+            - name: POSTGRES_DB
+              value: catalog
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U catalog -d catalog
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: catalogdb-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: catalogdb-data
+          persistentVolumeClaim:
+            claimName: catalogdb-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalogdb
+  namespace: catalog
+spec:
+  type: ClusterIP
+  selector:
+    app: catalogdb
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

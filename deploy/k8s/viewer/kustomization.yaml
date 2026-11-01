@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: viewer
+resources:
+  - lgtm.yaml
+  - log-collector.yaml
+  - exporters.yaml # postgres-exporter, elasticsearch-exporter, kafka-exporter, cadvisor
+configMapGenerator:
+  - name: alloy-config
+    files:
+      - config.alloy
+  - name: lgtm-prometheus
+    files:
+      - prometheus.yaml
+  - name: lgtm-grafana-dashboards
+    files:
+      - ops-infra.json
+  - name: lgtm-grafana-dashboard-provider
+    files:
+      - eshop-dashboards.yaml

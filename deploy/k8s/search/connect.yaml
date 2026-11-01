@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalog-product-connector
+  namespace: search
+data:
+  connector.json: |
+    {
+      "name": "eshop-catalog-product",
+      "config": {
+        "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+        "database.hostname": "catalogdb.catalog.svc",
+        "database.port": "5432",
+        "database.user": "catalog",
+        "database.password": "catalog",
+        "database.dbname": "catalog",
+        "topic.prefix": "eshop.catalog.sync",
+        "plugin.name": "pgoutput",
+        "slot.name": "eshop_catalog_sync",
+        "publication.autocreate.mode": "filtered",
+        "table.include.list": "public.mt_doc_product",
+        "snapshot.mode": "initial",
+        "schema.history.internal.kafka.bootstrap.servers": "kafka:9092",
+        "schema.history.internal.kafka.topic": "eshop.catalog.sync.schema-history"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connect
+  namespace: search
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: connect
+  template:
+    metadata:
+      labels:
+        app: connect
+    spec:
+      containers:
+        - name: connect
+          image: quay.io/debezium/connect:2.7.3.Final
+          ports:
+            - containerPort: 8083
+              name: http
+          env:
+            - name: BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: GROUP_ID
+              value: eshop-catalog-connect
+            - name: CONFIG_STORAGE_TOPIC
+              value: eshop.catalog.sync.connect-configs
+            - name: OFFSET_STORAGE_TOPIC
+              value: eshop.catalog.sync.connect-offsets
+            - name: STATUS_STORAGE_TOPIC
+              value: eshop.catalog.sync.connect-status
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8083
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: connect
+  namespace: search
+spec:
+  type: ClusterIP
+  selector:
+    app: connect
+  ports:
+    - name: http
+      port: 8083
+      targetPort: 8083
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: connect-register
+  namespace: search
+spec:
+  backoffLimit: 20
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: connect-register
+          image: quay.io/debezium/connect:2.7.3.Final
+          command:
+            - /bin/bash
+            - -c
+            - |
+              until curl -sf http://connect:8083/; do sleep 2; done
+              until curl -sf http://catalogapi.catalog.svc:8080/; do sleep 2; done
+              if ! curl -sf http://connect:8083/connectors/eshop-catalog-product >/dev/null; then
+                curl -sf -X POST http://connect:8083/connectors -H "Content-Type: application/json" --data @/connector.json
+              fi
+          volumeMounts:
+            - name: connector
+              mountPath: /connector.json
+              subPath: connector.json
+              readOnly: true
+      volumes:
+        - name: connector
+          configMap:
+            name: catalog-product-connector

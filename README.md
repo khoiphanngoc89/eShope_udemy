@@ -40,6 +40,7 @@ tests/                      Isolated suites (no live Postgres, no Grafana)
 deploy/
   compose.yaml              Service names and images
   compose.override.yaml     Ports, env, healthchecks, Catalog build
+  k8s/                      k3s kustomize (catalog + search + viewer)
   prometheus/               Extended LGTM Prometheus scrape (ES + Kafka exporters)
   grafana/provisioning/     Ops/Infra + Log/App dashboards and alerts
 specs/                      Feature specs, plans, contracts
@@ -57,7 +58,9 @@ Catalog wiring: `Program.cs` → `AddCatalogServices()` / `UsePipline()`. Endpoi
 
 ## Run locally
 
-Docker Desktop. From the repo root:
+Compose files in `deploy/` stay as the service identity list. Running compose is not required. Official local run is k3s in Ubuntu (below).
+
+From the repo root, the compose files still describe this stack:
 
 ```bash
 # Store only
@@ -83,6 +86,128 @@ docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml up -d --wa
 `--wait` returns only when healthchecks pass.
 
 **Stop:** `docker compose ... stop` or `down` without `-v`. `down -v` deletes volume `catalog-pgdata`.
+
+---
+
+## Run on k3s (WSL2)
+
+Official local cluster is **k3s in Ubuntu on WSL2** (containerd). Docker, Podman, minikube, k3d, kind, and Docker Desktop Kubernetes are not required. Compose files stay; running compose is not required.
+
+All commands below are run **inside Ubuntu WSL**, from the repo root (example: `/mnt/c/Khoi/Rider/eShop`). If `kubectl` is not on your PATH, use `sudo k3s kubectl` instead.
+
+### 1. One-time: systemd + k3s + .NET 10
+
+Enable systemd if `systemctl` is missing. In Ubuntu:
+
+```bash
+sudo tee /etc/wsl.conf >/dev/null <<'EOF'
+[boot]
+systemd=true
+EOF
+```
+
+Then from **Windows**: `wsl --shutdown`. Open Ubuntu again.
+
+Install k3s:
+
+```bash
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable traefik --disable servicelb" sh -
+```
+
+Install the .NET 10 SDK if `dotnet` is not found:
+
+```bash
+curl -fsSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 10.0
+echo 'export DOTNET_ROOT=$HOME/.dotnet' >> ~/.bashrc
+echo 'export PATH=$PATH:$HOME/.dotnet:$HOME/.dotnet/tools' >> ~/.bashrc
+source ~/.bashrc
+dotnet --version
+```
+
+Optional, so you can type `kubectl`:
+
+```bash
+mkdir -p ~/.kube
+sudo k3s kubectl config view --raw > ~/.kube/config
+sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+```
+
+### 2. Build and import the Catalog image (no Docker)
+
+`dotnet publish` writes the tar next to the Catalog project, not the repo root.
+
+```bash
+cd /mnt/c/Khoi/Rider/eShop
+
+dotnet publish src/Services/eShop.Catalog.Api/eShop.Catalog.Api.csproj \
+  -c Release \
+  /t:PublishContainer \
+  /p:ContainerRepository=eshop-catalog-api \
+  /p:ContainerImageTag=local \
+  /p:ContainerArchiveOutputPath=./eshop-catalog-api-local.tar
+
+sudo k3s ctr images import src/Services/eShop.Catalog.Api/eshop-catalog-api-local.tar
+# image name: eshop-catalog-api:local
+```
+
+Redo this step only after Catalog code changes.
+
+### 3. Start the stack
+
+```bash
+sudo systemctl start k3s
+kubectl apply -f deploy/k8s/namespace.yaml
+kubectl apply -k deploy/k8s
+kubectl -n catalog rollout status deploy/catalogdb
+kubectl -n catalog rollout status deploy/catalogapi
+```
+
+Official apply hosts namespaces `catalog`, `search`, and `viewer`. Catalog Ready waits only on the store. Search and viewer can still be starting.
+
+Check pods:
+
+```bash
+sudo k3s kubectl get pods -A
+```
+
+### 4. Connect (port-forward)
+
+NodePort cannot be `5000` (Kubernetes NodePort range is 30000–32767), so the host URL is port-forward. Leave this terminal open:
+
+```bash
+bash deploy/k8s/port-forward-localhost.sh
+# uses sudo k3s kubectl if kubectl is not on PATH
+```
+
+Or Catalog only: `kubectl -n catalog port-forward svc/catalogapi 5000:8080`.
+
+Then open these on Windows (the script binds `--address 0.0.0.0`):
+
+| Service | URL |
+|---------|-----|
+| Catalog / Swagger | http://localhost:5000 |
+| Grafana (lgtm) | http://localhost:3000 (admin / admin) |
+| Grafana Ops/Infra | http://localhost:3000/d/eshop-ops-infra/ops-infra |
+| Kafka UI | http://localhost:8080 |
+| Kibana | http://localhost:5601 |
+| Elasticsearch | http://localhost:9200 |
+| Debezium Connect | http://localhost:8083 |
+| Postgres | `localhost:5432` user/db `catalog` / `catalog` |
+
+`deploy/k8s/port-forward-localhost.sh` maps those host ports. Ctrl+C stops every forward.
+
+Catalog create / get-by-id work as soon as `catalogapi` is `1/1`, even if Kafka or Grafana is not Ready.
+
+After `lgtm` and the metric exporters have been Ready about one minute (search may still be starting), open Ops/Infra (`http://localhost:3000/d/eshop-ops-infra/ops-infra`, admin / admin). Store, Catalog.Api, Kafka, connector, search index, Kibana, Kafka UI, and exporters must appear: Ready = healthy with samples; not-ready or stopped = not healthy. Empty panels are a defect. Collector and Grafana need not appear. If Windows `localhost` fails, use `127.0.0.1`. Create and get-by-id still succeed if that metrics path is down.
+
+### 5. Stop
+
+**Ordinary stop:** Ctrl+C the port-forward, then `sudo systemctl stop k3s`. PVC `catalogdb-data` stays. Compose files stay.
+
+**Destructive stop** (empty cluster store): `kubectl delete pvc catalogdb-data -n catalog`. Do not delete `deploy/compose.yaml`.
+
+Isolated `dotnet test` does not start k3s.
 
 ---
 
@@ -271,5 +396,6 @@ dotnet test tests/BuildingBlocks/BuildBlock.Logging.Tests/BuildBlock.Logging.Tes
 | [006-hybrid-observability](specs/006-hybrid-observability/spec.md) | Grafana Ops/Infra (Prometheus + exporter) and Log/App (Catalog Error → ES); fail-open Catalog |
 | [007-loki-promtail](specs/007-loki-promtail/spec.md) | Alloy collector: Catalog + Kafka broker stdout → existing Loki; topic payloads stay in Kafka UI |
 | [008-all-container-logs](specs/008-all-container-logs/spec.md) | All non-app container logs in Loki (no Catalog duplicate); Ops/Infra overview + click for CPU/RAM and store health |
+| [009-local-k8s-wsl2](specs/009-local-k8s-wsl2/spec.md) | k3s in Ubuntu WSL2 hosts the full compose-equivalent stack; Catalog URL stays `localhost:5000` via port-forward |
 
 New production C# should follow an existing spec (or a new one) and TDD.
