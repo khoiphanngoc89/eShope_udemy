@@ -17,7 +17,8 @@
 
 ### Session 2026-11-01
 
-- Q: When a client asks for a product page or a name/price/category search, and the search index is unavailable, what should Catalog do? → A: Fail the page/search request with a clear service error. Do not return an empty success page and do not silently fall back to the catalog store. Get-by-id, create, and update still use the catalog store.
+- Q: When a client asks for a product page or a name/price/category search, and the search index is unavailable, what should Catalog do? → A: Fail the page/search request with a clear service error. Do not return an empty success page and do not silently fall back to the catalog store. Get-by-id also reads the search index and fails the same way. Create and update still use the catalog store.
+- Q: Should get-by-id keep reading the catalog store? → A: No. `GET /products/{id}` reads Elasticsearch `catalog-products`, same as browse. Missing from the index is not found. Index down is the same service error as browse. Create and update stay on the catalog store.
 - Q: After a product is created or updated in the catalog store, how soon must that change show up in product-page and search results? → A: Within 5 seconds under normal sync. Writes return as soon as the catalog store commits. Debezium captures the change, Kafka carries it, and the indexer updates the search index.
 - Q: When search sync starts, how should products that already exist in the catalog store get into the search index? → A: Snapshot existing products into the search index, then stream later catalog-store changes.
 - Q: What prefix should every catalog search-sync topic use so operators can find those topics quickly? → A: `eshop.catalog.sync`
@@ -45,8 +46,8 @@ A catalog client needs to see products without loading the whole catalog at once
 7. **Given** stored products in different categories, **When** a client asks for a page with a category search, **Then** Catalog returns only active, not-deleted products that list that category (case-insensitive) and a total that matches that filtered set.
 8. **Given** more than one search field is sent, **When** a client asks for a page, **Then** Catalog applies every supplied field together (a product must match all of them).
 9. **Given** a client sends a negative price search, **When** they ask for a page, **Then** Catalog rejects the request with a clear validation failure.
-10. **Given** the search index is unavailable, **When** a client asks for a product page or a name/price/category search, **Then** Catalog rejects the request with a clear service error and does not return an empty success page or results from the catalog store.
-11. **Given** the search index is unavailable, **When** a client fetches a stored product by identity, **Then** Catalog still returns that product from the catalog store.
+10. **Given** the search index is unavailable, **When** a client asks for a product page, a name/price/category search, or a product by identity, **Then** Catalog rejects the request with a clear service error and does not return an empty success page or results from the catalog store.
+11. **Given** a product exists only in the catalog store and not in the search index, **When** a client fetches it by identity, **Then** Catalog reports that the product was not found.
 12. **Given** a successful create-product or update-product, **When** the response is returned, **Then** that response is based on the catalog-store commit and does not wait for the search index.
 13. **Given** a successful create-product or update-product and normal search sync, **When** up to 5 seconds have passed, **Then** the product-page and name/price/category search results include that committed change.
 
@@ -104,7 +105,7 @@ An operator or client changes a product in the catalog store. Create and update 
 2. **Given** that created product and normal search sync, **When** up to 5 seconds have passed, **Then** the default product page and a matching name search include that product.
 3. **Given** a valid update-product request, **When** the catalog store commit succeeds, **Then** Catalog returns success without waiting for the search index.
 4. **Given** that updated product and normal search sync, **When** up to 5 seconds have passed, **Then** the product page and matching search show the new name, price, or category.
-5. **Given** create-product or update-product, **When** the search index, message stream, or change-data capture path is down, **Then** the write still succeeds and get-by-id still returns the stored product.
+5. **Given** create-product or update-product, **When** the search index, message stream, or change-data capture path is down, **Then** the write still succeeds. Get-by-id fails with the same search-index service error as browse until sync has indexed that product.
 6. **Given** products already exist in the catalog store and search sync starts, **When** the initial snapshot finishes, **Then** those existing active, not-deleted products are present in the search index without requiring an update.
 7. **Given** the initial snapshot has finished, **When** a later create-product or update-product commits, **Then** that change is streamed to the search index and is visible under normal sync within 5 seconds.
 8. **Given** search sync is running, **When** an operator opens Kafka UI and filters topics by `eshop.catalog.sync`, **Then** every catalog search-sync topic is listed under that prefix and no catalog search-sync topic uses another prefix.
@@ -136,7 +137,7 @@ An operator or client changes a product in the catalog store. Create and update 
 - No matches for a valid search is an empty page and a total of zero, not a not-found result.
 - A failed request’s Grafana/Loki error row must include the stack trace in the log message, not only the request name and duration.
 - Product-page and name/price/category search are served from the search index. If that index is unavailable, the request is a clear service failure, not an empty success page and not a silent catalog-store fallback.
-- Get-by-id, create-product, and update-product use the catalog store. Those paths must keep working when the search index is down.
+- Get-by-id uses the search index, same as browse. Create-product and update-product use the catalog store. Those write paths must keep working when the search index is down. Get-by-id must not.
 - Create-product and update-product return after the catalog-store commit. They do not write the search index in the same request and do not wait for search sync.
 - Under normal sync, a committed create or update is visible in product-page and name/price/category search within 5 seconds. Immediate same-request search visibility is not required.
 - When search sync starts, existing catalog-store products are snapshotted into the search index first. Later changes are streamed. Products stored before sync started are not left missing until someone updates them.
@@ -156,13 +157,13 @@ An operator or client changes a product in the catalog store. Create and update 
 - **FR-003**: An empty catalog or a page past the last product MUST return an empty product list and the correct total, not a failure.
 - **FR-004**: Catalog MUST reject a page number less than 1, a page size less than 1, or a page size above the documented maximum, with a clear validation failure.
 - **FR-005**: The default browse set MUST include only products that are active and not marked deleted. Every get query MUST apply this base-query rule.
-- **FR-006**: Get-by-id of a stored, not-deleted product MUST return that product, including shared item traits.
+- **FR-006**: Get-by-id of an active, not-deleted product that is present in the search index MUST return that product, including shared item traits. Get-by-id MUST read the search index, not the catalog store.
 - **FR-007**: Get-by-id of a missing, deleted, or inactive product MUST report not found.
 - **FR-008**: The shared building block MUST provide a reusable item base that every catalog product uses. That base MUST include a stable identity plus audit, deletion, and activable traits. Requested names for those contracts are `BaseEntity`, `IAuditable`, `IDeletable`, and `IActivable`.
 - **FR-009**: Catalog Product MUST use that shared item base so it carries identity, audit, deletion, and activable traits without defining its own copy of those fields.
 - **FR-010**: A successful create-product MUST store a product that is active, not deleted, and has created and last-changed times set, without changing Catalog’s public create-product path.
 - **FR-011**: A successful update-product MUST keep identity and created time unchanged and MUST refresh last-changed time, without changing Catalog’s public update-product path.
-- **FR-012**: The shared building block MUST provide a reusable page model (page number, page size, total count, and the page’s items) so Catalog does not invent a one-off page shape.
+- **FR-012**: The shared building block MUST provide a reusable page model (page number, page size, total count, the page’s items, order-by, and order-direction) so Catalog does not invent a one-off page shape. Public JSON for those order enums MUST use string names, not integers.
 - **FR-013**: Catalog MUST have isolated and service-level automated checks for get-by-id (found and not-found) and for paginated browse.
 - **FR-014**: Isolated automated checks MUST prove the shared item base and the shared page model can be used without starting Catalog or the log viewer stack.
 - **FR-015**: Isolated and service-level checks for this feature MUST use an isolated catalog store and MUST complete without the log viewer stack.
@@ -172,9 +173,9 @@ An operator or client changes a product in the catalog store. Create and update 
 - **FR-019**: Clients MUST be able to optionally search the product page by name, price, or category against the search index. A name match is case-insensitive contains. A price match is exact. A category match is a case-insensitive exact match against one listed category. When more than one search field is supplied, a product MUST match all of them.
 - **FR-020**: Catalog MUST reject a negative price search with a clear validation failure. Omitted or blank name and category MUST mean no filter on that field.
 - **FR-021**: When a Catalog request fails, the error log MUST include the request name, elapsed time, and the full stack trace in the log message so an operator can find the source in Grafana. The public HTTP 500 body MUST NOT include a stack trace.
-- **FR-022**: Catalog-store reads that still use Marten (get-by-id and any supporting reads for create or update) MUST use asynchronous Marten data access. Synchronous enumeration of a Marten query is not allowed.
-- **FR-023**: When the search index is unavailable, Catalog MUST fail the product-page and name/price/category search request with a clear service error. Catalog MUST NOT return an empty success page and MUST NOT silently query the catalog store for that request.
-- **FR-024**: Get-by-id, create-product, and update-product MUST keep using the catalog store and MUST remain available when the search index is down. The catalog store remains the source of truth; the search index is a disposable read model for browse and search.
+- **FR-022**: Catalog-store reads that still use Marten (supporting reads for create or update) MUST use asynchronous Marten data access. Synchronous enumeration of a Marten query is not allowed.
+- **FR-023**: When the search index is unavailable, Catalog MUST fail the product-page, name/price/category search, and get-by-id request with a clear service error. Catalog MUST NOT return an empty success page and MUST NOT silently query the catalog store for that request.
+- **FR-024**: Create-product and update-product MUST keep using the catalog store and MUST remain available when the search index is down. Get-by-id MUST use the search index and MUST fail the same way as browse when that index is down. The catalog store remains the source of truth for writes; the search index is the read model for browse, search, and get-by-id.
 - **FR-025**: A successful create-product or update-product MUST return once the catalog-store commit succeeds. The response MUST NOT wait for the search index.
 - **FR-026**: Under normal search sync, a committed create-product or update-product change MUST be visible in the product page and in name/price/category search within 5 seconds.
 - **FR-027**: Catalog MUST copy committed catalog-store product changes to the search index through change-data capture. Requested path: Debezium publishes the change, Kafka carries it, and an indexer updates the search index. Create-product and update-product MUST NOT dual-write the search index.
@@ -197,9 +198,9 @@ An operator or client changes a product in the catalog store. Create and update 
 - **Default browse set**: Products that are active and not marked deleted.
 - **Filtered browse set**: The default browse set after optional name, price, and category search. With no search fields, this is the default browse set.
 - **Base query**: Shared get-query rule in the building block. Every Catalog get query applies `IsActive = true` and `IsDeleted = false`.
-- **Catalog search**: Paginated browse plus optional name, price, or category filters, served from the search index. Get-by-id is a catalog-store read, not a search-index read.
-- **Search index**: The disposable read model used for product-page and name/price/category search. Requested implementation: Elasticsearch. If it is unavailable, browse and search fail visibly.
-- **Catalog store**: The source of truth for product identity and writes. Get-by-id, create-product, and update-product use it.
+- **Catalog search**: Paginated browse plus optional name, price, or category filters, and get-by-id, served from the search index.
+- **Search index**: The disposable read model used for product-page, name/price/category search, and get-by-id. Requested implementation: Elasticsearch. If it is unavailable, browse, search, and get-by-id fail visibly.
+- **Catalog store**: The source of truth for product identity and writes. Create-product and update-product use it.
 - **Search sync**: The change-data-capture path that copies catalog-store products to the search index. It starts with a snapshot of existing products, then streams later committed changes. Requested path: Debezium, then Kafka, then the indexer. Create and update do not write the index themselves.
 - **Normal search sync**: Search sync is running and not failing. Under this condition, a committed product change is searchable within 5 seconds.
 - **Search-sync topic**: A message topic used to snapshot or stream catalog product changes toward the search index. Every such topic starts with `eshop.catalog.sync`.
@@ -228,7 +229,7 @@ An operator or client changes a product in the catalog store. Create and update 
 - **SC-008**: 100% of previously passing create-product and shared logging checks still pass after this feature is added.
 - **SC-009**: Two identical page requests against an unchanged catalog return the same products in the same order in 100% of runs.
 - **SC-011**: 100% of product-page and name/price/category search requests fail with a clear service error when the search index is unavailable. None of those failed requests return an empty success page or results read from the catalog store.
-- **SC-012**: 100% of get-by-id journeys for a stored, not-deleted, active product still succeed when the search index is unavailable.
+- **SC-012**: 100% of get-by-id journeys fail with a clear service error when the search index is unavailable. None of those failed requests return a catalog-store product.
 - **SC-013**: 100% of successful create-product and update-product responses return after the catalog-store commit and do not wait for the search index.
 - **SC-014**: Under normal search sync, 100% of committed create-product and update-product changes are visible in the product page and in a matching name, price, or category search within 5 seconds.
 - **SC-015**: After search sync starts and the initial snapshot finishes, 100% of active, not-deleted products that already existed in the catalog store are present in the search index without requiring an update.
@@ -242,9 +243,9 @@ An operator or client changes a product in the catalog store. Create and update 
 ## Assumptions
 
 - Product constraints from the request: the reusable item base, page model, and Elasticsearch search store live in the shared building block (`BuildingBlock`); the requested contract names are `BaseEntity`, `IAuditable`, `IDeletable`, and `IActivable`; Catalog Product uses `BaseEntity` and `ISearchStore<Product>`. Those names are requested constraints, not success-criterion implementation steps.
-- “Search Catalog.Api” means paginated browse plus optional name (contains, case-insensitive), exact price, or category (exact, case-insensitive, against one listed category), served from the search index. Combined search fields are AND. Blank name or category is ignored. Get-by-id is a catalog-store read, not part of the search-index path.
+- “Search Catalog.Api” means paginated browse plus optional name (contains, case-insensitive), exact price, or category (exact, case-insensitive, against one listed category), plus get-by-id, served from the search index. Combined search fields are AND. Blank name or category is ignored.
 - The catalog store is the source of truth. The search index is a disposable read model (requested: Elasticsearch). A search outage must be visible: page and search fail with a service error. Silent fallback to the catalog store is rejected because it hides the outage and can return a different match set than the index.
-- Get-by-id, create-product, and update-product public paths stay on the catalog store and must not be blocked by a search-index outage.
+- Create-product and update-product public paths stay on the catalog store and must not be blocked by a search-index outage. Get-by-id reads the search index and is blocked by the same outage as browse.
 - Search freshness is eventually consistent. Requested sync path: Debezium captures catalog-store product changes, Kafka carries them, and an indexer updates Elasticsearch. The write API does not dual-write the index. Under normal search sync, the freshness budget is 5 seconds.
 - Search sync is snapshot-then-stream. Existing catalog-store products are loaded once when sync starts; later creates and updates are streamed. Stream-only startup is out of scope because it would hide products stored before sync.
 - All catalog search-sync topics use the prefix `eshop.catalog.sync`. Kafka UI is in scope so operators can filter and trace those topics. Unrelated Kafka topics are not renamed.

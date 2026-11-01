@@ -41,7 +41,7 @@ Prior entity/page decisions from 2026-10-31 stay. This pass adds the search-inde
 
 ## 5. Search-index outage is a visible service error
 
-**Decision**: When `ISearchStore<T>` cannot talk to the index, throw BuildingBlock `SearchIndexUnavailableException` (`ServiceUnavailableException`). `WithException` maps that type to HTTP **503** with `{ message }` and no stack. Keep FR-021 failed-request logging (name, duration, stack in the log). Get-by-id, create, and update do not use the search store and stay available.
+**Decision**: When `ISearchStore<T>` cannot talk to the index, throw BuildingBlock `SearchIndexUnavailableException` (`ServiceUnavailableException`). `WithException` maps that type to HTTP **503** with `{ message }` and no stack. Keep FR-021 failed-request logging (name, duration, stack in the log). Get-by-id uses the search store and fails the same way. Create and update do not use the search store and stay available.
 
 **Rationale**: FR-023, FR-024, SC-011, SC-012. Empty 200 would look like an empty catalog. Silent Marten fallback hides the outage and can return a different match set.
 
@@ -50,13 +50,13 @@ Prior entity/page decisions from 2026-10-31 stay. This pass adds the search-inde
 - HTTP 200 empty page — rejected by FR-023.
 - Cached last page — extra store, not requested.
 
-## 6. Get-by-id stays on the catalog store
+## 6. Get-by-id reads the search index
 
-**Decision**: `GetByIdHandler` keeps using Marten through `ICatalogUnitOfWork`. Deleted or inactive remains not found. No Elasticsearch lookup on this path.
+**Decision**: `GetByIdHandler` uses `ISearchStore<Product>.GetByIdAsync`. Missing, deleted, or inactive in the index remains not found. Index unavailable is `SearchIndexUnavailableException` (HTTP 503), same as browse. No catalog-store fallback.
 
-**Rationale**: FR-006, FR-007, FR-024. Point reads stay on the source of truth.
+**Rationale**: FR-006, FR-007, FR-023, FR-024. Clients see the same read model as browse.
 
-**Alternatives considered**: Serve get-by-id from Elasticsearch — rejected; index lag could hide a just-written product.
+**Alternatives considered**: Keep get-by-id on Marten — rejected; browse and get-by-id would disagree after sync. Silent Marten fallback — rejected; hides a search outage.
 
 ## 7. Sync is Debezium → Kafka → .NET indexer (no dual-write)
 

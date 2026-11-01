@@ -18,6 +18,42 @@ public class SearchStoreTests
     }
 
     [Fact]
+    public async Task GetById_WhenDocumentIsActive_ReturnsIt()
+    {
+        var store = new InMemorySearchStore<SampleItem>();
+        var item = CreateItem("Trail Bike");
+        store.Store(item);
+
+        var loaded = await store.GetByIdAsync(item.Id, CancellationToken.None);
+
+        Assert.Equal(item.Id, loaded?.Id);
+        Assert.Equal(item.Name, loaded?.Name);
+    }
+
+    [Fact]
+    public async Task GetById_WhenDocumentIsMissingOrHidden_ReturnsNull()
+    {
+        var store = new InMemorySearchStore<SampleItem>();
+        var inactive = CreateItem("inactive", isActive: false);
+        var deleted = CreateItem("deleted", isDeleted: true);
+        store.Store(inactive);
+        store.Store(deleted);
+
+        Assert.Null(await store.GetByIdAsync(Guid.NewGuid(), CancellationToken.None));
+        Assert.Null(await store.GetByIdAsync(inactive.Id, CancellationToken.None));
+        Assert.Null(await store.GetByIdAsync(deleted.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetById_WhenStoreIsUnavailable_ThrowsSearchIndexUnavailableException()
+    {
+        var store = new InMemorySearchStore<SampleItem> { Unavailable = true };
+
+        await Assert.ThrowsAsync<SearchIndexUnavailableException>(() =>
+            store.GetByIdAsync(Guid.NewGuid(), CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Search_WhenMoreItemsThanPageSize_ReturnsOnlyThatPageAndFilteredTotal()
     {
         var store = new InMemorySearchStore<SampleItem>();

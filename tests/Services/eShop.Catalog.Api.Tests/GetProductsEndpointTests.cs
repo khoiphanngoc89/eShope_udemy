@@ -37,6 +37,10 @@ public class GetProductsEndpointTests : IAsyncLifetime
         Assert.Equal(2, root.GetProperty("pageSize").GetInt32());
         Assert.Equal(5, root.GetProperty("totalCount").GetInt32());
         Assert.Equal(2, root.GetProperty("items").GetArrayLength());
+        Assert.Equal(JsonValueKind.String, root.GetProperty("orderBy").ValueKind);
+        Assert.Equal("CreatedAt", root.GetProperty("orderBy").GetString());
+        Assert.Equal(JsonValueKind.String, root.GetProperty("orderDirection").ValueKind);
+        Assert.Equal("Desc", root.GetProperty("orderDirection").GetString());
     }
 
     [Fact]
@@ -139,7 +143,7 @@ public class GetProductsEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetProducts_WhenSearchIndexIsUnavailable_Returns503AndGetByIdStillWorks()
+    public async Task GetProducts_WhenSearchIndexIsUnavailable_Returns503AndGetByIdAlsoFails()
     {
         var id = SeedProduct("Trail Bike", 10m, ["bikes"]);
         _factory.Search.Unavailable = true;
@@ -150,7 +154,7 @@ public class GetProductsEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.ServiceUnavailable, searchResponse.StatusCode);
         using var json = JsonDocument.Parse(await searchResponse.Content.ReadAsStringAsync());
         Assert.True(json.RootElement.TryGetProperty("message", out _));
-        Assert.Equal(HttpStatusCode.OK, getByIdResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, getByIdResponse.StatusCode);
     }
 
     [Fact]
@@ -165,6 +169,24 @@ public class GetProductsEndpointTests : IAsyncLifetime
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal(1, json.RootElement.GetProperty("totalCount").GetInt32());
         Assert.Equal(outdoor, json.RootElement.GetProperty("items")[0].GetProperty("id").GetGuid());
+    }
+
+    [Fact]
+    public async Task GetProducts_WhenOrderQueryUsesJsonStrings_EchoesOrderOnResult()
+    {
+        SeedProduct("Zebra", 1m, ["bikes"]);
+        SeedProduct("Apple", 2m, ["bikes"]);
+
+        using var response = await _client.GetAsync("/products?orderBy=Name&orderDirection=Asc");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = json.RootElement;
+        Assert.Equal(JsonValueKind.String, root.GetProperty("orderBy").ValueKind);
+        Assert.Equal("Name", root.GetProperty("orderBy").GetString());
+        Assert.Equal(JsonValueKind.String, root.GetProperty("orderDirection").ValueKind);
+        Assert.Equal("Asc", root.GetProperty("orderDirection").GetString());
+        Assert.Equal("Apple", root.GetProperty("items")[0].GetProperty("name").GetString());
     }
 
     private Guid SeedProduct(string name, decimal price, List<string> categories)

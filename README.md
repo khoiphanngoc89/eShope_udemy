@@ -12,7 +12,7 @@ Solution: `eShop.slnx`.
 
 ## What it does
 
-A client `POST`s a product to Catalog.Api. Catalog stores it in PostgreSQL through Marten and returns `201` with a new `id`. Clients can `GET /products` (page plus optional name, price, or category search **from Elasticsearch**), `GET /products/{id}` (catalog store), `PUT /products/{id}`, and `POST /products/import`. Create, update, and import do **not** write Elasticsearch. Debezium snapshots then streams `mt_doc_product` onto Kafka topics prefixed `eshop.catalog.sync`; Catalog’s indexer upserts `catalog-products`. If Elasticsearch is down, `GET /products` returns **503**; create, import, and get-by-id still work. If the index does not exist yet (no document has been synced), `GET /products` is **200** with empty `items`, not 503. Request logs go to the console and, when LGTM is up, to Loki. Compose also dual-writes Catalog **Error/Fatal** logs to Elasticsearch index `catalog-app-logs` (fail-open). Correlation IDs (`trace_id`, `span_id`) are attached when ASP.NET has a request activity. There is no identity, basket, or ordering service yet.
+A client `POST`s a product to Catalog.Api. Catalog stores it in PostgreSQL through Marten and returns `201` with a new `id`. Clients can `GET /products` (page plus optional name, price, or category search **from Elasticsearch**) and `GET /products/{id}` (**from Elasticsearch**), `PUT /products/{id}`, and `POST /products/import`. Create, update, and import do **not** write Elasticsearch. Debezium snapshots then streams `mt_doc_product` onto Kafka topics prefixed `eshop.catalog.sync`; Catalog’s indexer upserts `catalog-products`. If Elasticsearch is down, `GET /products` and `GET /products/{id}` return **503**; create, update, and import still work. If the index does not exist yet (no document has been synced), `GET /products` is **200** with empty `items` and `GET /products/{id}` is **404**, not 503. Request logs go to the console and, when LGTM is up, to Loki. Compose also dual-writes Catalog **Error/Fatal** logs to Elasticsearch index `catalog-app-logs` (fail-open). Correlation IDs (`trace_id`, `span_id`) are attached when ASP.NET has a request activity. There is no identity, basket, or ordering service yet.
 
 ```
 Client  →  catalogapi :8080 (published :5000)  →  catalogdb :5432 (Marten)
@@ -212,6 +212,77 @@ Check pods:
 sudo k3s kubectl get pods -A
 ```
 
+### 3b. Check Kubernetes
+
+All in Ubuntu WSL. If `kubectl` is on PATH, drop `sudo k3s`. Catalog Ready is store-only; search and viewer can still be starting.
+
+Cluster and pods:
+
+```bash
+sudo systemctl is-active k3s
+sudo k3s kubectl get pods -A
+sudo k3s kubectl get pods,svc -n catalog
+sudo k3s kubectl get pods,svc -n search
+sudo k3s kubectl get pods,svc -n viewer
+```
+
+Expect catalog `catalogdb` and `catalogapi` `1/1`. Search/viewer may still be `0/1` or `Init`.
+
+Rollouts:
+
+```bash
+sudo k3s kubectl -n catalog rollout status deploy/catalogdb
+sudo k3s kubectl -n catalog rollout status deploy/catalogapi
+sudo k3s kubectl -n search rollout status deploy/elasticsearch
+sudo k3s kubectl -n search rollout status deploy/kafka
+sudo k3s kubectl -n search rollout status deploy/connect
+sudo k3s kubectl -n viewer rollout status deploy/lgtm
+sudo k3s kubectl -n viewer rollout status deploy/postgres-exporter
+sudo k3s kubectl -n viewer rollout status deploy/elasticsearch-exporter
+sudo k3s kubectl -n viewer rollout status deploy/kafka-exporter
+sudo k3s kubectl -n viewer rollout status deploy/cadvisor
+```
+
+Services, NodePorts, PVC, image:
+
+```bash
+sudo k3s kubectl -n catalog get svc catalogapi catalogdb
+sudo k3s kubectl -n catalog get pvc catalogdb-data
+sudo k3s ctr images ls | grep eshop-catalog
+```
+
+Expect `8080:30050/TCP`, `5432:30432/TCP`, PVC `Bound`, image `eshop-catalog-api:local`. `EXTERNAL-IP` stays `<none>`.
+
+Not Ready, events, logs:
+
+```bash
+sudo k3s kubectl get events -A --sort-by=.lastTimestamp | tail -30
+sudo k3s kubectl -n catalog describe pod -l app=catalogapi
+sudo k3s kubectl -n catalog logs -l app=catalogapi --tail=50
+sudo k3s kubectl -n search logs job/connect-register --tail=50
+sudo k3s kubectl -n search describe pod -l app=connect
+```
+
+Catalog store (Postgres) and search index (Elasticsearch):
+
+```bash
+sudo k3s kubectl -n catalog exec deploy/catalogdb -- \
+  psql -U catalog -d catalog -c "\dt"
+sudo k3s kubectl -n catalog exec deploy/catalogdb -- \
+  psql -U catalog -d catalog -c "SELECT count(*) FROM mt_doc_product;"
+sudo k3s kubectl -n search exec deploy/elasticsearch -- \
+  curl -sS "http://localhost:9200/_cat/indices?v"
+```
+
+Empty PVC: no `mt_doc_product` until Catalog starts (or first write). Browse reads Elasticsearch `catalog-products`, not Postgres.
+
+Catalog HTTP (WSL IP + NodePort, no port-forward):
+
+```bash
+hostname -I | awk '{print $1}'
+curl -sS "http://<wsl-ip>:30050/products?pageNumber=1&pageSize=10"
+```
+
 ### 4. Connect (port-forward)
 
 NodePort cannot be `5000` (Kubernetes NodePort range is 30000–32767), so the host URL is port-forward. Leave this terminal open:
@@ -282,6 +353,50 @@ On Windows, open that IP (not `localhost`):
 sudo k3s kubectl -n catalog port-forward svc/catalogapi 5000:8080 --address 0.0.0.0
 ```
 
+### 4c. Browse empty while Postgres has products
+
+First time (empty PVC): Postgres **auto create**s database `catalog` (`POSTGRES_DB`). Catalog then applies Marten schema (`public.mt_doc_product`) because Kafka is set. **Then** Debezium Connect starts and `connect-register` POSTs the connector.
+
+`GET /products` and `GET /products/{id}` both read Elasticsearch `catalog-products`, not `mt_doc_product`. If Debezium registered **before** Marten created that table, the publication is empty and **no Kafka events fire**. Browse stays empty and get-by-id is 404 until sync runs; Postgres may still have the rows.
+
+Re-snapshot the 46 (or any) existing rows — in WSL:
+
+```bash
+# Connect API (script or one-shot)
+sudo k3s kubectl -n search port-forward svc/connect 8083:8083 --address 0.0.0.0
+```
+
+Other terminal:
+
+```bash
+curl -sS http://127.0.0.1:8083/connectors/eshop-catalog-product/status
+curl -sS -X DELETE http://127.0.0.1:8083/connectors/eshop-catalog-product
+
+sudo k3s kubectl -n catalog exec deploy/catalogdb -- \
+  psql -U catalog -d catalog -c "SELECT slot_name, active FROM pg_replication_slots;"
+sudo k3s kubectl -n catalog exec deploy/catalogdb -- \
+  psql -U catalog -d catalog -c "SELECT pubname FROM pg_publication;"
+sudo k3s kubectl -n catalog exec deploy/catalogdb -- \
+  psql -U catalog -d catalog -c "SELECT * FROM pg_publication_tables;"
+
+sudo k3s kubectl -n catalog exec deploy/catalogdb -- \
+  psql -U catalog -d catalog -c "SELECT pg_drop_replication_slot('eshop_catalog_sync');"
+sudo k3s kubectl -n catalog exec deploy/catalogdb -- \
+  psql -U catalog -d catalog -c "DROP PUBLICATION IF EXISTS dbz_publication;"
+
+sudo k3s kubectl -n search delete job connect-register
+sudo k3s kubectl apply -k deploy/k8s
+sudo k3s kubectl -n search logs job/connect-register --follow
+```
+
+Expect connector `RUNNING`, then:
+
+```bash
+curl -sS http://<wsl-ip>:30050/products?pageNumber=1\&pageSize=10
+```
+
+`connect-register` now waits until `public.mt_doc_product` exists before it POSTs the connector.
+
 ### 5. Stop
 
 **Ordinary stop:** Ctrl+C the port-forward, then `sudo systemctl stop k3s`. PVC `catalogdb-data` stays. Compose files stay.
@@ -298,13 +413,13 @@ Isolated `dotnet test` does not start k3s.
 
 Host **5000** → container **8080**. HTTP only. Swagger is on in Development.
 
-| What | Method | Path |
-|------|--------|------|
-| Create product | `POST` | `/products` |
-| Page / search products | `GET` | `/products` |
-| Import products from Excel | `POST` | `/products/import` |
-| Get product by id | `GET` | `/products/{id}` |
-| Update product | `PUT` | `/products/{id}` |
+| What | Method | Path | Reads |
+|------|--------|------|-------|
+| Create product | `POST` | `/products` | catalog store (write) |
+| Page / search products | `GET` | `/products` | Elasticsearch `catalog-products` |
+| Import products from Excel | `POST` | `/products/import` | catalog store (write) |
+| Get product by id | `GET` | `/products/{id}` | Elasticsearch `catalog-products` |
+| Update product | `PUT` | `/products/{id}` | catalog store (write) |
 | OpenAPI document | `GET` | `/openapi/v1.json` |
 | Swagger UI | `GET` | `/swagger` |
 
@@ -322,7 +437,7 @@ Auth: none. No public delete or activate routes.
 | `costPrice`, `sewingCost`, `fabricCostAccessoriesCost`, `packagingCost` | omitted | Exact match; reject `< 0` |
 | `category` | omitted | Case-insensitive exact match against one listed category |
 
-Combined search fields are AND. Blank `name` or `category` is ignored. Sort ties are ordered by `id` ascending. Only active, not-deleted products are returned. `GET /products` reads Elasticsearch, not the catalog store. Index down → `503` `{ message }` (no stack). Missing index (nothing synced yet) → `200` with `items: []`.
+Combined search fields are AND. Blank `name` or `category` is ignored. Sort ties are ordered by `id` ascending. Only active, not-deleted products are returned. `GET /products` JSON includes `orderBy` and `orderDirection` as **string** enum names (`CreatedAt`, `Desc`, not `0` / `1`). Query parameters use the same names (`?orderBy=Name&orderDirection=Asc`). `GET /products` and `GET /products/{id}` read Elasticsearch, not the catalog store. A product that exists only in Postgres is omitted from browse and is **404** on get-by-id until search sync indexes it. Index down → `503` `{ message }` (no stack) on browse and get-by-id. Missing index (nothing synced yet) → browse `200` with `items: []`; get-by-id `404`.
 
 Operator UIs (optional, not required for `dotnet test`):
 
@@ -358,7 +473,7 @@ Required JSON: `name`, `amount`, `costPrice`, `sewingCost`, `fabricCostAccessori
 
 Import products with `POST /products/import` using `multipart/form-data` with a file field named `file`. Upload the `.xlsx` workbook; the importer reads product rows from the `CHI PHÍ` sheet. It maps `Tên sản phẩm`, `Số lượng đặt may`, `Chi phí may/SP`, `Vải + Phụ liệu/SP`, `Đóng gói/SP`, and `Giá vốn/SP` to product fields. A blank cost is treated as zero; if per-product cost is blank, it is calculated from the three component costs. Rows without a product name are skipped. The workbook does not supply description, image, or category values, so those are empty on imported products.
 
-Import (like create) returns after the catalog-store commit. Those products appear on `GET /products` only after search sync: start `connect-register` with the search stack, then wait a few seconds. If search sync is not running, import still succeeds and `GET /products/{id}` still works; `GET /products` stays empty or returns 503 if Elasticsearch is down.
+Import (like create) returns after the catalog-store commit. Those products appear on `GET /products` and `GET /products/{id}` only after search sync: start `connect-register` with the search stack, then wait a few seconds. If search sync is not running, import still succeeds; browse stays empty or returns 503 if Elasticsearch is down, and get-by-id is 404 until the document is indexed.
 
 ```powershell
 curl.exe -X POST http://localhost:5000/products/import -F "file=@products.xlsx"
@@ -413,7 +528,7 @@ Loki (`3100`), Tempo (`3200`), Prometheus (`9090`) stay inside the container. In
 
 - **Ops/Infra** (Prometheus only) — one product-stack overview (Catalog.Api, Kafka, connector, search index, Kibana, Kafka UI, exporters). Healthy = process up. Stopped or missing = not healthy. Overview shows **CPU and RAM** for those identities. **Catalog Db** is its own row (up, connections, size). Zero store size or ES documents is valid and is not not-healthy. A bottom **Grafana / LGTM disk** panel shows Prometheus TSDB size inside `lgtm`. There is no service dropdown. Collector and Grafana are not required on the health overview. Catalog does not scrape the store or cadvisor.
 - **Log/App** (Elasticsearch data source, provisioned) — why it broke? Filter `service.name` = `eShop.Catalog.Api`.
-- **Explore → Loki** — process-line search. Loki is not replaced.
+- **Explore → Loki** — process-line search. Loki is not replaced. Do not add a Loki data source. Last **15 minutes**. Empty before first write is valid.
 
 ```bash
 curl -s http://localhost:9114/metrics | findstr elasticsearch_cluster_health_
@@ -421,12 +536,9 @@ curl -s http://localhost:9308/metrics | findstr kafka_brokers
 curl -s http://localhost:9187/metrics | findstr pg_up
 ```
 
-```logql
-{service_name=~".*eShop.Catalog.Api.*"}
-| line_format "{{__line__}}\ntrace_id='{{.trace_id}}'\nspan_id='{{.span_id}}'"
-```
+Grafana: compose `http://127.0.0.1:3000` or k3s NodePort `http://<wsl-ip>:30000` → **Explore → Loki**. Same LogQL on both (k3s Alloy sets `compose_service` from the pod `app` label).
 
-Catalog application lines (OTLP only — not a second container copy). Last 15 minutes. Do not add a Loki data source.
+**Catalog application** (OTLP only — not a container copy):
 
 ```logql
 {service_name=~".*eShop.Catalog.Api.*"}
@@ -434,7 +546,18 @@ Catalog application lines (OTLP only — not a second container copy). Last 15 m
 {service_name=~".*eShop.Catalog.Api.*"} |= "failed"
 ```
 
-Non-application process lines (Docker stdout → Alloy → Loki). Empty before first write is valid.
+**trace_id / span_id** (on Catalog **request** rows only; startup lines have none). Console text uses `TraceId:` / `SpanId:`. OTLP fields are `trace_id` / `span_id`. Paste an id from a request row or from Tempo.
+
+```logql
+{service_name=~".*eShop.Catalog.Api.*"} |= "TraceId:"
+{service_name=~".*eShop.Catalog.Api.*"} | line_format "{{__line__}}\ntrace_id='{{.trace_id}}'\nspan_id='{{.span_id}}'"
+{service_name=~".*eShop.Catalog.Api.*"} | trace_id!="" | line_format "{{.trace_id}}  {{.span_id}}  {{__line__}}"
+{service_name=~".*eShop.Catalog.Api.*"} | trace_id="<paste-trace-id>"
+{service_name=~".*eShop.Catalog.Api.*"} | span_id="<paste-span-id>"
+{service_name=~".*eShop.Catalog.Api.*"} |= "<paste-trace-id>"
+```
+
+**Store / search-sync process lines** (Alloy → Loki). `{compose_service="kafka"}` is broker process text, not topic JSON — payloads stay in Kafka UI.
 
 ```logql
 {compose_service="catalogdb"}
@@ -445,9 +568,26 @@ Non-application process lines (Docker stdout → Alloy → Loki). Empty before f
 {compose_service="kafka-ui"}
 ```
 
-`{compose_service="kafka"}` is Kafka **broker process** lines, not topic payloads — those stay in Kafka UI http://localhost:8080. Catalog request logs use the OTLP selector above, not a second container-tail copy of Catalog.Api. Catalog and Kafka stay up if `log-collector`, `cadvisor`, or `postgres-exporter` is stopped.
+**Exporters / cadvisor** (when those pods are up):
 
-`trace_id` / `span_id` are fields on **request** rows, not in the default message text. Startup lines have none.
+```logql
+{compose_service="postgres-exporter"}
+{compose_service="elasticsearch-exporter"}
+{compose_service="kafka-exporter"}
+{compose_service="cadvisor"}
+```
+
+Useful filters on any of the above:
+
+```logql
+{compose_service="catalogdb"} |= "error" or |= "ERROR" or |= "fatal"
+{compose_service="elasticsearch"} |= "Exception"
+{service_name=~".*eShop.Catalog.Api.*"} | json | level="Error"
+```
+
+Do **not** use a Catalog container-tail selector for request logs. Catalog request lines use the `service_name` queries only. Catalog and Kafka stay up if `log-collector`, `cadvisor`, or `postgres-exporter` is stopped.
+
+`trace_id` / `span_id` are fields on **request** rows, not in the default message text. Startup lines have none. After a request, copy `trace_id` from Loki and paste it in **Explore → Tempo** (service `eShop.Catalog.Api`) to open the same waterfall.
 
 After Catalog handles at least one public request with LGTM up, open Grafana **Explore → Tempo → Search** and filter service name `eShop.Catalog.Api`. That request’s waterfall must appear. A Tempo service graph is not required. Catalog still starts if Tempo is down.
 

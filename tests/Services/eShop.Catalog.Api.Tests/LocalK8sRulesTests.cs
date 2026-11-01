@@ -106,10 +106,36 @@ public class LocalK8sRulesTests
         Assert.Contains("apache/kafka:3.8.1", overlay, StringComparison.Ordinal);
         Assert.Contains("1@127.0.0.1:9093", overlay, StringComparison.Ordinal);
         Assert.Contains("CONTROLLER://127.0.0.1:9093", overlay, StringComparison.Ordinal);
+        Assert.Contains("PLAINTEXT://kafka.search.svc:9092", overlay, StringComparison.Ordinal);
         Assert.Contains("quay.io/debezium/connect:2.7.3.Final", overlay, StringComparison.Ordinal);
         Assert.Contains("docker.elastic.co/elasticsearch/elasticsearch:8.15.3", overlay, StringComparison.Ordinal);
         Assert.Contains("docker.elastic.co/kibana/kibana:8.15.3", overlay, StringComparison.Ordinal);
         Assert.Contains("provectuslabs/kafka-ui:v0.7.2", overlay, StringComparison.Ordinal);
+        Assert.Contains("eshop-catalog-product", overlay, StringComparison.Ordinal);
+        Assert.Contains("mt_doc_product", overlay, StringComparison.Ordinal);
+        Assert.Contains("catalogdb.catalog.svc", overlay, StringComparison.Ordinal);
+        Assert.Contains("wait-product-table", overlay, StringComparison.Ordinal);
+        Assert.Contains("to_regclass('public.mt_doc_product')", overlay, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SearchOverlay_StartsDebeziumOnlyAfterProductTableExists()
+    {
+        var connect = ReadRequired("deploy", "k8s", "search", "connect.yaml");
+        var catalogDi = ReadRequired("src", "Services", "eShop.Catalog.Api", "DependencyInjection.cs");
+        var catalogdb = ReadRequired("deploy", "k8s", "catalog", "catalogdb.yaml");
+        var readme = ReadRequired("README.md");
+
+        Assert.Contains("POSTGRES_DB", catalogdb, StringComparison.Ordinal);
+        Assert.Contains("Schema.For<Product>", catalogDi, StringComparison.Ordinal);
+        Assert.Contains("ApplyAllConfiguredChangesToDatabaseAsync", catalogDi, StringComparison.Ordinal);
+        Assert.Contains("BootstrapServers", catalogDi, StringComparison.Ordinal);
+        Assert.Contains("wait-product-table", connect, StringComparison.Ordinal);
+        Assert.Contains("to_regclass('public.mt_doc_product')", connect, StringComparison.Ordinal);
+        Assert.Contains("initContainers:", connect, StringComparison.Ordinal);
+        Assert.Contains("auto create", readme, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("then", readme, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Debezium", readme, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -287,6 +313,38 @@ public class LocalK8sRulesTests
         Assert.DoesNotContain("minikube image load", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("minikube stop", readme, StringComparison.Ordinal);
         Assert.DoesNotContain("minikube delete", readme, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Readme_DocumentsK3sCheckScripts()
+    {
+        var readme = ReadRequired("README.md");
+
+        Assert.Contains("systemctl is-active k3s", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl get pods -A", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl get pods,svc -n catalog", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl get pods,svc -n search", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl get pods,svc -n viewer", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n catalog rollout status deploy/catalogdb", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n catalog rollout status deploy/catalogapi", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n search rollout status deploy/elasticsearch", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n search rollout status deploy/kafka", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n search rollout status deploy/connect", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n viewer rollout status deploy/lgtm", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n viewer rollout status deploy/postgres-exporter", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n viewer rollout status deploy/elasticsearch-exporter", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n viewer rollout status deploy/kafka-exporter", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n viewer rollout status deploy/cadvisor", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n catalog get pvc catalogdb-data", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl get events -A", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n catalog describe pod -l app=catalogapi", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n catalog logs -l app=catalogapi", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n search logs job/connect-register", readme, StringComparison.Ordinal);
+        Assert.Contains("kubectl -n catalog exec deploy/catalogdb --", readme, StringComparison.Ordinal);
+        Assert.Contains("SELECT count(*) FROM mt_doc_product", readme, StringComparison.Ordinal);
+        Assert.Contains("_cat/indices", readme, StringComparison.Ordinal);
+        Assert.Contains("k3s ctr images ls", readme, StringComparison.Ordinal);
+        Assert.Contains("/products?pageNumber=1", readme, StringComparison.Ordinal);
     }
 
     [Fact]

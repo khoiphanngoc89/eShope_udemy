@@ -1,6 +1,5 @@
-using eShop.Catalog.Api.Data;
+using BuildingBlock.Search;
 using eShop.Catalog.Api.Exceptions;
-using FluentValidation;
 
 namespace eShop.Catalog.Api.Products.GetById;
 
@@ -13,16 +12,13 @@ public sealed class GetByIdValidator : AbstractValidator<GetByIdQuery>
         RuleFor(x => x.Id).NotEmpty().WithMessage("Product ID is required.");
     }
 }
-public sealed class GetByIdHandler(ICatalogUnitOfWork unitOfWork) : IQueryHandler<GetByIdQuery, GetByIdResult>
+public sealed class GetByIdHandler(ISearchStore<Product> searchStore) : IQueryHandler<GetByIdQuery, GetByIdResult>
 {
     public async Task<GetByIdResult> Handle(GetByIdQuery query, CancellationToken cancellationToken)
     {
-        var product = await unitOfWork.Products.GetByIdAsync(query.Id, cancellationToken);
-        if (product is null)
-        {
-            throw new ProductNotFoundException(query.Id);
-        }
+        var product = await searchStore.GetByIdAsync(query.Id, cancellationToken);
+        ProductNotFoundException.ThrowIfNull(product, query.Id);
 
-        return new GetByIdResult(product);
+        return new GetByIdResult(product!);
     }
 }

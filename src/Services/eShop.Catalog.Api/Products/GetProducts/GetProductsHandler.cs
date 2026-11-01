@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 using BuildingBlock.Exceptions;
 using BuildingBlock.Models;
 using BuildingBlock.Search;
@@ -7,6 +8,7 @@ using FluentValidation;
 
 namespace eShop.Catalog.Api.Products.GetProducts;
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ProductOrderBy
 {
     CreatedAt,

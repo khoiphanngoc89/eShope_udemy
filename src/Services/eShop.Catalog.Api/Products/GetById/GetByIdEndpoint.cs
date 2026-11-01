@@ -19,6 +19,7 @@ public sealed class GetByIdEndpoint : ICarterModule
         .WithTags("Products")
         .WithException()
         .Produces<GetByIdResponse>(StatusCodes.Status200OK)
-        .Produces(StatusCodes.Status404NotFound);
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status503ServiceUnavailable);
     }
 }

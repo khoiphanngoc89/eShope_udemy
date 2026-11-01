@@ -46,11 +46,11 @@ A developer who already works in WSL2 starts a **k3s cluster path** documented i
 
 ### User Story 2 - Host search-sync on the same local cluster (Priority: P2)
 
-The documented k3s start hosts the same search-sync pieces as compose on the **same** local cluster (message broker, connector, search index, and the operator UIs they already use locally). After those parts are ready and at least one product has been synced, `GET /products` returns items. If search is down, create and get-by-id still work; browse returns the same “search unavailable” behavior as today’s local stack.
+The documented k3s start hosts the same search-sync pieces as compose on the **same** local cluster (message broker, connector, search index, and the operator UIs they already use locally). After those parts are ready and at least one product has been synced, `GET /products` returns items. If search is down, create still works; browse and get-by-id return the same “search unavailable” behavior as today’s local stack.
 
 **Why this priority**: The cluster path must host the full product, not Catalog alone. Catalog writes still come first so Ready rules stay fail-open.
 
-**Independent Test**: After the documented full-stack start, wait until search-sync is ready and a product has been synced, then browse returns items. Stop search and confirm create/get-by-id still succeed.
+**Independent Test**: After the documented full-stack start, wait until search-sync is ready and a product has been synced, then browse and get-by-id return items. Stop search and confirm create still succeeds while browse and get-by-id fail the same way.
 
 **Acceptance Scenarios**:
 
@@ -98,7 +98,7 @@ A developer follows run notes to start, wait until ready, and stop the local k3s
 - WSL2 is up but the local cluster cannot start (k3s missing or not running): the developer sees a clear documented failure, not a silent hang.
 - Catalog is started without the store: Catalog MUST NOT appear available.
 - Search index missing (nothing synced yet): browse is empty success, not “search down,” matching current local behavior.
-- Search process down: browse is unavailable; create and get-by-id still work.
+- Search process down: browse and get-by-id are unavailable; create still works.
 - Local viewer down: product writes still work.
 - Viewer and metric exporters Ready for about one minute but Ops/Infra panels are empty or “No data”: that is a defect, not a pass. A stopped or not-Ready product-stack container (store, Catalog.Api, Kafka, connector, search index, Kibana, Kafka UI, metric exporters) MUST show as not healthy (that is data, not an empty panel). Ops/Infra MAY pass while search is still starting. Collector and Grafana may be absent from the board. An empty catalog is not an outage.
 - Ordinary stop vs destructive stop: daily stop does not wipe catalog data; destructive stop is explicit and documented.
@@ -116,7 +116,7 @@ A developer follows run notes to start, wait until ready, and stop the local k3s
 - **FR-006**: Isolated and service-level automated checks MUST complete without starting the local cluster or the local viewer.
 - **FR-007**: Catalog process start on the cluster path MUST NOT require the local metrics/log viewer or collectors.
 - **FR-008**: The documented k3s start MUST host the existing search-sync product pieces (broker, connector, connector register, search index, operator UIs) on the **same** cluster, not a second cluster and not a later optional add-on.
-- **FR-009**: When search is down, create and get-by-id MUST keep working. Browse MUST fail in the same user-visible way as the current local stack.
+- **FR-009**: When search is down, create MUST keep working. Browse and get-by-id MUST fail in the same user-visible way as the current local stack.
 - **FR-010**: Run notes MUST tell a WSL2 developer how to start the **full compose-equivalent stack** on k3s, wait until Catalog is ready, stop, and (separately) destroy data. Those notes MUST NOT require Docker, Podman, or starting compose. Catalog Ready MUST NOT require the viewer or collectors.
 - **FR-014**: The documented k3s start MUST host the compose observability identities on the same cluster: `lgtm`, `log-collector`, `postgres-exporter`, `elasticsearch-exporter`, `kafka-exporter`, and `cadvisor`. No second Grafana product. Catalog Ready MUST NOT wait on any of them.
 - **FR-016**: After the local viewer and metric exporters have been Ready for about one minute, the existing **Ops/Infra** view MUST show live metrics the same way compose does. The overview MUST include store, Catalog.Api, Kafka, connector, search index, Kibana, Kafka UI, and metric exporters. Each listed container MUST appear. A listed container that is Ready MUST show healthy with samples. A listed container that is not Ready or is stopped MUST show not healthy. A click on a Ready container MUST open that container’s detail metrics. Accepting this view MUST NOT wait for the whole search set to become Ready. Collector and Grafana MUST NOT be required on this board. The developer MUST NOT add a data source or a second Grafana by hand. Empty metric panels on that view are a defect. Catalog create and get-by-id MUST still succeed if the metrics path is down.

@@ -18,8 +18,8 @@ Namespace **`search`**. Same images as `deploy/compose.yaml`:
 | Name | Image | Cross-ns notes |
 |------|-------|----------------|
 | `kafka` | `apache/kafka:3.8.1` | From `catalog`: `kafka.search.svc:9092` |
-| `connect` | `quay.io/debezium/connect:2.7.3.Final` | Store: `catalogdb.catalog.svc` |
-| `connect-register` | `quay.io/debezium/connect:2.7.3.Final` | Catalog: `catalogapi.catalog.svc` |
+| `connect` | `quay.io/debezium/connect:2.7.3.Final` | Store: `catalogdb.catalog.svc`. MUST NOT become Ready until `public.mt_doc_product` exists |
+| `connect-register` | `quay.io/debezium/connect:2.7.3.Final` | Catalog: `catalogapi.catalog.svc`. MUST wait until `public.mt_doc_product` exists, then POST the connector |
 | `elasticsearch` | `docker.elastic.co/elasticsearch/elasticsearch:8.15.3` | From `catalog`: `elasticsearch.search.svc:9200` |
 | `kibana` | `docker.elastic.co/kibana/kibana:8.15.3` | |
 | `kafka-ui` | `provectuslabs/kafka-ui:v0.7.2` | |

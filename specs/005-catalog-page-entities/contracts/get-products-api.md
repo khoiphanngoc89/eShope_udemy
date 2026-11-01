@@ -28,6 +28,8 @@ Query names include `pageNumber`, `pageSize`, `orderBy`, `orderDirection`, `name
 | `pageSize` | integer |
 | `totalCount` | integer |
 | `items` | array of product |
+| `orderBy` | JSON string enum (`CreatedAt`, `LastModified`, `Name`, `CostPrice`, `SewingCost`, `FabricCostAccessoriesCost`, `PackagingCost`, `Amount`) |
+| `orderDirection` | JSON string enum (`Asc`, `Desc`) |
 
 Each product includes existing catalog fields (`id`, `name`, `amount`, cost fields, `description`, `imageFile`, `categories`) plus shared traits (`createdAt`, `lastModified`, `createdBy`, `lastModifiedBy`, `isDeleted`, `isActive`).
 
@@ -80,13 +82,14 @@ When the search store cannot serve the query.
 - Body is `{ message }` (no stack)
 - Items are not returned from the catalog store
 - The failed-request log still includes request name, duration, and stack (FR-021)
-- `GET /products/{id}` for a stored active product still returns 200
+- `GET /products/{id}` for that same product also returns 503
 
 **Failure of the feature**
 
 - HTTP 200 with `items: []` while the index is down
 - HTTP 200 with products loaded from the catalog store
-- Create or get-by-id also failing solely because the index is down
+- Create failing solely because the index is down
+- Get-by-id returning 200 from the catalog store while the index is down
 
 ## Out of scope
 

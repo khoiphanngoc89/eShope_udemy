@@ -67,7 +67,7 @@ Search index down → create/update/get-by-id still succeed; GET /products fails
 
 - Isolated create: stored `Product` matches result id, product fields, and trait defaults (FR-010).
 - Isolated update: stored `Product` keeps id and `CreatedAt`; `LastModified` is later (FR-011).
-- Isolated / service-level get-by-id: load by id from the catalog store; null, deleted, or inactive → not found.
+- Isolated / service-level get-by-id: load by id from `ISearchStore<Product>`; null, deleted, inactive, or store-only → not found. Index unavailable → 503.
 - Isolated / service-level browse: read BuildingBlock `ISearchStore<Product>` only (FR-001). Seed `InMemorySearchStore<Product>` in tests.
 
 ## ProductSearchDocument

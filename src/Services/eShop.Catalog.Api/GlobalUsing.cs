@@ -2,6 +2,7 @@ global using MediatR;
 global using Marten;
 global using Carter;
 global using Mapster;
+global using FluentValidation;
 global using BuildingBlock.Extensions;
 global using BuildingBlock.Data;
 global using BuildingBlock.Models;

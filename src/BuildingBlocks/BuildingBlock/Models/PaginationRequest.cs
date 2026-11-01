@@ -1,5 +1,8 @@
+using System.Text.Json.Serialization;
+
 namespace BuildingBlock.Models;
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum OrderDirection
 {
     Asc,

@@ -6,6 +6,8 @@ Auth: none.
 
 The path already exists (`GET /products/{id}`). This feature adds not-found-for-deleted and automated checks. It does not rename the path.
 
+**Read source**: search index (`ISearchStore<Product>`). This path MUST NOT query the catalog store.
+
 ## 1. Get a stored, not-deleted product (FR-006)
 
 ```http
@@ -49,7 +51,21 @@ When no product exists for `id`, or the stored product has `isDeleted: true`.
 - Status: `404 Not Found`
 - Body includes `message` (existing `ProductNotFoundException` text)
 
-Deleted products MUST NOT be returned as `200`.
+Deleted products MUST NOT be returned as `200`. A product that exists only in the catalog store MUST return `404`.
+
+## 3. Search index unavailable (FR-023, FR-024)
+
+```http
+GET /products/{id}
+```
+
+When the search store cannot serve the lookup.
+
+**Success of the check**
+
+- Status: `503 Service Unavailable`
+- Body is `{ message }` (no stack)
+- Catalog MUST NOT return the catalog-store row
 
 ## Out of scope
 

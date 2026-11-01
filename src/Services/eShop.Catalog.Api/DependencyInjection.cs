@@ -37,6 +37,8 @@ public static class DependencyInjection
         // Add services to the container.
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
         builder.Services.AddFluentValidation();
         builder.Services.AddAppCarter();
         builder.Services.AddAppMediatR();
@@ -70,6 +72,7 @@ public static class DependencyInjection
             var options = new StoreOptions();
             options.Connection(databaseOptions.CatalogDb);
             options.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
+            options.Schema.For<Product>();
             options.OpenTelemetry.TrackConnections = TrackLevel.Normal; // Spans for DB commands
             options.OpenTelemetry.TrackEventCounters(); // Optional: Metrics for Event Store
             return options;

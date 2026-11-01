@@ -53,7 +53,25 @@ public sealed class InMemorySearchStore<T> : ISearchStore<T> where T : BaseEntit
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToList();
-        return Task.FromResult(new PaginatedResult<T>(query.PageNumber, query.PageSize, ordered.Count, items));
+        return Task.FromResult(new PaginatedResult<T>(
+            query.PageNumber,
+            query.PageSize,
+            ordered.Count,
+            items,
+            query.OrderBy,
+            query.OrderDirection));
+    }
+
+    public Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        EnsureAvailable();
+        if (_documents.TryGetValue(id, out var document) && document is { IsActive: true, IsDeleted: false })
+        {
+            return Task.FromResult<T?>(document);
+        }
+
+        return Task.FromResult<T?>(null);
     }
 
     public Task UpsertAsync(T document, CancellationToken cancellationToken = default)

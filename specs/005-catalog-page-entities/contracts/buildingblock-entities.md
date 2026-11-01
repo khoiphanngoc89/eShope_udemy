@@ -25,14 +25,15 @@ BaseEntity : IAuditable, IDeletable, IActivable
 ## 2. Shared page model (FR-012, FR-014)
 
 ```text
-PaginationRequest(PageNumber = 1, PageSize = 10)
-PaginatedResult<T>(PageNumber, PageSize, TotalCount, Items)
+PaginationRequest(PageNumber = 1, PageSize = 10, OrderBy, OrderDirection = Desc)
+PaginatedResult<T>(PageNumber, PageSize, TotalCount, Items, OrderBy, OrderDirection)
 ```
 
 **Success**
 
 - A test can construct `PaginationRequest` and get defaults `1` and `10`
-- A test can construct `PaginatedResult<T>` with a page of items and a total count without starting Catalog
+- A test can construct `PaginatedResult<T>` with a page of items, a total count, `OrderBy`, and `OrderDirection` without starting Catalog
+- Public JSON for those enums uses string names, not integers
 
 **Failure of the feature**
 

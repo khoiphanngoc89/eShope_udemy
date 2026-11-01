@@ -98,6 +98,41 @@ public class GetByIdEndpointTests : IAsyncLifetime
             IsActive = isActive
         };
         _factory.Documents.Store(product);
+        _factory.Search.Store(product);
         return product;
+    }
+
+    [Fact]
+    public async Task GetProductById_WhenProductIsOnlyInCatalogStore_ReturnsNotFound()
+    {
+        var product = new Product
+        {
+            Id = Guid.NewGuid(),
+            Name = "Store Only",
+            CostPrice = 1m,
+            Description = "Desc",
+            ImageFile = "file.png",
+            Categories = ["bikes"],
+            IsDeleted = false,
+            IsActive = true
+        };
+        _factory.Documents.Store(product);
+
+        using var response = await _client.GetAsync($"/products/{product.Id}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetProductById_WhenSearchIndexIsUnavailable_Returns503()
+    {
+        var product = StoreProduct(isDeleted: false, isActive: true);
+        _factory.Search.Unavailable = true;
+
+        using var response = await _client.GetAsync($"/products/{product.Id}");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(json.RootElement.TryGetProperty("message", out _));
     }
 }

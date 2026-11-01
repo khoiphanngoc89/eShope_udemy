@@ -25,11 +25,13 @@ public class PaginatedResultTests
     {
         var items = new[] { "a", "b" };
 
-        var result = new PaginatedResult<string>(1, 10, 25, items);
+        var result = new PaginatedResult<string>(1, 10, 25, items, "CreatedAt", OrderDirection.Desc);
 
         Assert.Equal(1, result.PageNumber);
         Assert.Equal(10, result.PageSize);
         Assert.Equal(25, result.TotalCount);
         Assert.Equal(items, result.Items);
+        Assert.Equal("CreatedAt", result.OrderBy);
+        Assert.Equal(OrderDirection.Desc, result.OrderDirection);
     }
 }

@@ -40,6 +40,15 @@ spec:
       labels:
         app: connect
     spec:
+      initContainers:
+        - name: wait-product-table
+          image: postgres:16.15
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h catalogdb.catalog.svc -U catalog -d catalog; do sleep 2; done
+              until [ "$(PGPASSWORD=catalog psql -h catalogdb.catalog.svc -U catalog -d catalog -tAc "SELECT to_regclass('public.mt_doc_product')")" = "mt_doc_product" ]; do echo waiting for mt_doc_product; sleep 2; done
       containers:
         - name: connect
           image: quay.io/debezium/connect:2.7.3.Final
@@ -89,6 +98,15 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      initContainers:
+        - name: wait-product-table
+          image: postgres:16.15
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h catalogdb.catalog.svc -U catalog -d catalog; do sleep 2; done
+              until [ "$(PGPASSWORD=catalog psql -h catalogdb.catalog.svc -U catalog -d catalog -tAc "SELECT to_regclass('public.mt_doc_product')")" = "mt_doc_product" ]; do echo waiting for mt_doc_product; sleep 2; done
       containers:
         - name: connect-register
           image: quay.io/debezium/connect:2.7.3.Final

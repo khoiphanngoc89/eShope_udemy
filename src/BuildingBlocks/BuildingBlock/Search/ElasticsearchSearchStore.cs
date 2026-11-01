@@ -55,13 +55,55 @@ public sealed class ElasticsearchSearchStore<T> : ISearchStore<T> where T : Base
                 // Missing index is an empty catalog, not an outage. See IsMissingIndex.
                 if (IsMissingIndex(type, reason))
                 {
-                    return new PaginatedResult<T>(query.PageNumber, query.PageSize, 0, []);
+                    return new PaginatedResult<T>(
+                        query.PageNumber,
+                        query.PageSize,
+                        0,
+                        [],
+                        query.OrderBy,
+                        query.OrderDirection);
                 }
 
                 throw new SearchIndexUnavailableException(reason ?? "Search index is unavailable");
             }
 
-            return new PaginatedResult<T>(query.PageNumber, query.PageSize, (int)response.Total, response.Documents.ToList());
+            return new PaginatedResult<T>(
+                query.PageNumber,
+                query.PageSize,
+                (int)response.Total,
+                response.Documents.ToList(),
+                query.OrderBy,
+                query.OrderDirection);
+        }
+        catch (SearchIndexUnavailableException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new SearchIndexUnavailableException("Search index is unavailable", ex);
+        }
+    }
+
+    public async Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _client.GetAsync<T>(id, g => g.Index(_indexName), cancellationToken);
+            if (!response.IsValidResponse)
+            {
+                var type = response.ElasticsearchServerError?.Error.Type;
+                var reason = response.ElasticsearchServerError?.Error.Reason;
+                if (IsMissingIndex(type, reason) || response.ApiCallDetails.HttpStatusCode == 404)
+                {
+                    return null;
+                }
+
+                throw new SearchIndexUnavailableException(reason ?? "Search index is unavailable");
+            }
+
+            var document = response.Source;
+            return document is { IsActive: true, IsDeleted: false } ? document : null;
         }
         catch (SearchIndexUnavailableException)
         {
